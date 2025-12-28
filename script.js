@@ -7,7 +7,7 @@ let currentAngle = 0;
 let usingSensors = false;
 
 // Coordonnées de la cible (42°51'13.6"N 3°02'18.3"E converties en décimal)
-const targetCoords = { lat: 42.853778, lon: 3.038417 };
+const targetCoords = { lat: 42.851556, lon: 3.034500 };
 
 // Variables pour position utilisateur et bearing cible
 let userCoords = null;
