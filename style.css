@@ -28,7 +28,7 @@ h1 {
     height: 300px;
     border-radius: 50%;
     position: relative;
-    background: conic-gradient(red 0deg 0deg, #ff0000 0deg 1deg, #fff 1deg 359deg, #ff0000 359deg 360deg);
+    background: conic-gradient(rgb(0, 0, 0) 0deg 0deg, #000000 0deg 1deg, #fff 1deg 359deg, #000000 359deg 360deg);
 }
 
 .arrow {
