@@ -6,6 +6,56 @@ const enableBtn = document.getElementById('enableCompass');
 let currentAngle = 0;
 let usingSensors = false;
 
+// Coordonnées de la cible (42°51'13.6"N 3°02'18.3"E converties en décimal)
+const targetCoords = { lat: 42.853778, lon: 3.038417 };
+
+// Variables pour position utilisateur et bearing cible
+let userCoords = null;
+let targetBearing = 0;
+
+// Calculer la distance entre deux points GPS (en mètres)
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Rayon de la Terre en mètres
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// Calculer l'angle vers la cible par rapport au Nord (bearing en degrés)
+function getBearing(lat1, lon1, lat2, lon2) {
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) -
+              Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    let bearing = Math.atan2(y, x) * 180 / Math.PI;
+    return (bearing + 360) % 360;
+}
+
+// Surveiller la position GPS de l'utilisateur et mettre à jour targetBearing
+if ('geolocation' in navigator) {
+    navigator.geolocation.watchPosition((position) => {
+        userCoords = {
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+        };
+        targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
+        const dist = getDistance(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
+        if (headingEl) headingEl.textContent = `${Math.round(dist)} m`;
+    }, (err) => {
+        console.error('Erreur GPS:', err);
+    }, { enableHighAccuracy: true });
+}
+
 function rotateTo(angle) {
     let angleDiff = angle - (currentAngle % 360);
     if (angleDiff > 180) angleDiff -= 360;
@@ -34,11 +84,14 @@ function handleOrientationEvent(e) {
     }
     if (heading !== null) {
         usingSensors = true;
-        // L'aiguille dans le CSS pointe vers le bas par défaut,
-        // on ajoute 180° pour qu'elle pointe vers le nord réel.
-        // Appliquer l'inversion pour que l'aiguille pointe vers le nord
-        rotateTo(180 - heading);
-        updateHeadingDisplay(heading);
+        // Si on a la bearing de la cible (targetBearing) on calcule
+        // l'angle relatif : direction cible - direction téléphone
+        // puis on transforme en rotation écran (arrow pointe vers le sud par défaut)
+        const deviceHeading = heading;
+        const relative = ((targetBearing - deviceHeading) % 360 + 360) % 360; // 0..359
+        const rotationToApply = relative - 180; // convert to arrow rotation
+        rotateTo(rotationToApply);
+        updateHeadingDisplay(deviceHeading);
     }
 }
 
