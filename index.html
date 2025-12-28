@@ -48,7 +48,9 @@
             });
 
             const script = document.createElement('script');
-            script.src = mode === 'gps' ? 'script3.js' : 'script.js';
+            // always load the dual controller which updates both needles;
+            // the toggle still selects whether the red needle uses GPS or north
+            script.src = 'dual.js';
             script.defer = true;
             document.body.appendChild(script);
         })();
