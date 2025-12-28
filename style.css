@@ -49,15 +49,6 @@ h1 {
     left: -20px;
 }
 
-#distance {
-    position: absolute;
-    top: -30px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: white;
-    font-family: sans-serif;
-    white-space: nowrap;
-}
 
 .compass-circle {
     width: 320px;
@@ -69,4 +60,24 @@ h1 {
     transform: translate(-50%, -50%);
     border: 10px solid #fff;
     box-sizing: border-box;
+}
+
+.info {
+    margin-top: 20px;
+    color: rgb(8, 255, 255);
+    text-align: center;
+}
+
+#enableCompass {
+    background: rgba(255,255,255,0.06);
+    color: rgb(8,255,255);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+#heading {
+    margin-top: 8px;
+    font-size: 18px;
 }
