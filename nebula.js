@@ -3,7 +3,7 @@
     constructor(canvasId, options = {}) {
       this.canvas = document.getElementById(canvasId);
       if (!this.canvas) { console.error('Canvas not found:', canvasId); return; }
-      this.config = { ...{"particleCount":5000,"baseRadius":200,"interactionRadius":1500,"warpStrength":6,"rotationSpeed":0.15,"colorTheme":"fire","hoverType":"attract"}, ...options };
+      this.config = { ...{"particleCount":5000,"baseRadius":300,"interactionRadius":1500,"warpStrength":6,"rotationSpeed":0.15,"colorTheme":"fire","hoverType":"attract"}, ...options };
       this.ctx = this.canvas.getContext('2d');
       this.particles = [];
       this.mouse = { x: 0, y: 0, isActive: false };
@@ -50,9 +50,47 @@
       const time = Date.now() * 0.001 * this.config.rotationSpeed;
       // If using needle tip as source, update mouse coords from needle
       if (this.useNeedleTip && this.needleElem) {
-        const nr = this.needleElem.getBoundingClientRect();
-        const tipX = nr.left + nr.width / 2; const tipY = nr.top + nr.height;
-        this.mouse.x = tipX; this.mouse.y = tipY; this.mouse.isActive = true;
+        // Compute the tip position from the arrow rotation and compass bounds so
+        // the effect stays on the outer edge of the compass (not near center).
+        const compassEl = this.needleElem.closest('.compass');
+        const compRect = compassEl ? compassEl.getBoundingClientRect() : null;
+        const canvasRect = this.canvas.getBoundingClientRect();
+
+        // fallback to bounding rect center if no compass found
+        if (!compRect) {
+          const nr = this.needleElem.getBoundingClientRect();
+          const tipX = nr.left + nr.width/2;
+          const tipY = nr.top;
+          this.mouse.x = tipX - canvasRect.left; this.mouse.y = tipY - canvasRect.top; this.mouse.isActive = true;
+        } else {
+          // extract rotation angle from computed transform matrix
+          const cs = window.getComputedStyle(this.needleElem);
+          const tr = cs.transform || cs.webkitTransform || 'none';
+          let rot = 0;
+          if (tr && tr !== 'none') {
+            const m = tr.match(/matrix\(([-0-9.,e ]+)\)/);
+            if (m) {
+              const vals = m[1].split(',').map(v => parseFloat(v));
+              const a = vals[0], b = vals[1];
+              rot = Math.atan2(b, a); // radians
+            }
+          }
+
+          // compass center
+          const centerX = compRect.left + compRect.width/2;
+          const centerY = compRect.top + compRect.height/2;
+          // put the interaction on the outer edge (slightly inset)
+          const radius = Math.min(compRect.width, compRect.height)/2 - 6;
+
+          // arrow graphic points down at rotation=0, so direction vector = (sin, cos)
+          const tipX = centerX + Math.sin(rot) * radius;
+          const tipY = centerY + Math.cos(rot) * radius;
+
+          // convert to canvas-local coords (previously mouse was client-relative to canvas)
+          this.mouse.x = tipX - canvasRect.left;
+          this.mouse.y = tipY - canvasRect.top;
+          this.mouse.isActive = true;
+        }
       }
       const mouseRelX = (this.mouse.x * (width / this.canvas.offsetWidth)) - cx;
       const mouseRelY = (this.mouse.y * (height / this.canvas.offsetHeight)) - cy;

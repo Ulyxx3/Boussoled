@@ -23,8 +23,8 @@ h1 {
     text-align: center;
 }
 .compass {
-    width: 300px;
-    height: 300px;
+    width: 800px;
+    height: 800px;
     border-radius: 50%;
     position: relative;
 }
@@ -83,20 +83,6 @@ h1 {
 
 
 
-/* Petit cercle central rouge pour faire partie de l'aiguille */
-.compass::before {
-    content: '';
-    position: absolute;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgb(255, 0, 0);
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 0 0 6px rgba(0,0,0,0.6);
-    z-index: 4;
-}
 
 /* Cercle gris en fond pour l'aiguille north (bleue) */
 .compass-bg {
