@@ -12,7 +12,7 @@
   const northArrow = document.querySelector('.north-arrow');
 
   // target coords (example)
-  const targetCoords = { lat: 42.853778, lon: 3.038417 };
+  const targetCoords = { lat: 42.851556, lon: 3.034500 };
 
   let currentAngle = 0;
   let northCurrentAngle = 0;
