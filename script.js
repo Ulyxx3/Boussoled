@@ -1,6 +1,7 @@
 const arrow = document.querySelector('.arrow');
 const compass = document.querySelector('.compass');
 const headingEl = document.getElementById('heading');
+const distanceEl = document.getElementById('distance');
 const enableBtn = document.getElementById('enableCompass');
 
 let currentAngle = 0;
@@ -50,7 +51,7 @@ if ('geolocation' in navigator) {
         };
         targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
         const dist = getDistance(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
-        if (headingEl) headingEl.textContent = `${Math.round(dist)} m`;
+        if (distanceEl) distanceEl.textContent = `${Math.round(dist)} m`;
     }, (err) => {
         console.error('Erreur GPS:', err);
     }, { enableHighAccuracy: true });

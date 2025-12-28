@@ -15,6 +15,14 @@ h1 {
     top: 20px;
 }
 
+#distance {
+    color: rgb(8, 255, 255);
+    margin-top: 60px;
+    margin-bottom: 12px;
+    font-size: 20px;
+    text-align: center;
+}
+
 .compass {
     width: 300px;
     height: 300px;
