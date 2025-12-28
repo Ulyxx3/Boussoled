@@ -44,6 +44,32 @@ h1 {
     transform-origin: 50% 100%;
     z-index: 3;
 }
+
+.north-arrow {
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 110px solid rgb(0, 150, 255);
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    transform-origin: 50% 100%;
+    z-index: 4;
+}
+
+.north-arrow::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 110px solid rgba(0,0,0,0.6);
+    top: 110px;
+    left: -8px;
+}
  
 .arrow::after {
     content: '';

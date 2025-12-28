@@ -19,6 +19,8 @@ let targetBearing = 0;
 let calibrationOffset = 0; // degrees added to final rotation
 let lastDeviceHeading = null;
 let lastBaseRotation = null;
+let northArrow = document.querySelector('.north-arrow');
+let northCurrentAngle = 0;
 
 // --- Geolocation helpers --------------------------------------------------
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -175,6 +177,14 @@ function handleOrientationEvent(e) {
     rotateTo(smoothed);
     updateHeadingDisplay(deviceHeading);
 
+    // Update north needle: it should always point to geographic north
+    if (northArrow) {
+        const northDesired = normalize360(180 - deviceHeading);
+        const northSmoothed = smoothAngle(northCurrentAngle, northDesired, 0.12);
+        northCurrentAngle = northSmoothed;
+        northArrow.style.transform = `translateX(-50%) rotate(${northSmoothed}deg)`;
+    }
+
     // Debug info
     if (debugEl) {
         debugEl.style.display = 'block';
@@ -252,6 +262,12 @@ function onMouseMove(e) {
     const desired = normalize360(baseRotation + calibrationOffset);
     const smoothed = smoothAngle(currentAngle % 360, desired, 0.2);
     rotateTo(smoothed);
+    if (northArrow) {
+        const northDesired = 180; // assume top of screen == north for mouse fallback
+        const northSmoothed = smoothAngle(northCurrentAngle, northDesired, 0.2);
+        northCurrentAngle = northSmoothed;
+        northArrow.style.transform = `translateX(-50%) rotate(${northSmoothed}deg)`;
+    }
     const deltaX = e.clientX - compassX, deltaY = e.clientY - compassY;
     const distance = Math.round(Math.sqrt(deltaX*deltaX + deltaY*deltaY));
     updateHeadingDisplay(`${Math.round(normalize360(currentAngle))}° • ${distance}px`);
