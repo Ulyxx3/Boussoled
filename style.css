@@ -40,7 +40,7 @@ h1 {
     position: absolute;
     top: 0;
     left: 50%;
-    transform: translateX(-50%);
+  /*  transform: translateX(-50%);*/
     transform-origin: 50% 100%;
     z-index: 3;
 }
