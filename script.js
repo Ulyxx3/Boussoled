@@ -180,23 +180,50 @@ function getCompassHeading(alpha, beta, gamma) {
 }
 
 function enableDeviceOrientation() {
+    try {
+        enableBtn.disabled = true;
+        enableBtn.textContent = 'Demande permission...';
+    } catch(e){}
+
+    const onSuccessAttach = () => {
+        // mark enabled
+        try { enableBtn.textContent = 'Activée'; enableBtn.style.display = 'none'; } catch(e){}
+        console.log('DeviceOrientation listener attached');
+    };
+
+    const onFailAttach = (msg) => {
+        try { enableBtn.disabled = false; enableBtn.textContent = msg || 'Activation échouée'; } catch(e){}
+        if (debugEl) { debugEl.style.display = 'block'; debugEl.textContent = 'Activation error: ' + (msg || 'unknown'); }
+        console.warn('DeviceOrientation attach failed:', msg);
+    };
+
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission().then(permissionState => {
             if (permissionState === 'granted') {
                 window.addEventListener('deviceorientation', handleOrientationEvent, true);
-                enableBtn.style.display = 'none';
+                // also try absolute variant
+                window.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
+                onSuccessAttach();
             } else {
-                enableBtn.textContent = 'Permission refusée';
+                onFailAttach('Permission refusée');
             }
         }).catch(err => {
-            enableBtn.textContent = 'Erreur permission';
             console.error(err);
+            onFailAttach('Erreur permission');
         });
     } else if (typeof DeviceOrientationEvent !== 'undefined') {
+        // No permission API – attach directly
         window.addEventListener('deviceorientation', handleOrientationEvent, true);
-        enableBtn.style.display = 'none';
+        window.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
+        // Wait briefly to see if events arrive
+        const waited = setTimeout(() => {
+            if (!usingSensors) {
+                onFailAttach('Pas d\'événements capteurs reçus');
+            }
+        }, 1200);
+        onSuccessAttach();
     } else {
-        enableBtn.textContent = 'Capteur non disponible';
+        onFailAttach('Capteur non disponible');
     }
 }
 
