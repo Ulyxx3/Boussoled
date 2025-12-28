@@ -40,22 +40,56 @@ function getBearing(lat1, lon1, lat2, lon2) {
     const φ1 = lat1 * Math.PI/180;
     const φ2 = lat2 * Math.PI/180;
     const Δλ = (lon2-lon1) * Math.PI/180;
+    // Compute compass heading from alpha/beta/gamma using rotation matrix
+    // Returns heading in degrees (0 = north)
+    function getCompassHeading(alpha, beta, gamma) {
+        const degToRad = Math.PI / 180;
+        const _alpha = alpha * degToRad; // z
+        const _beta = beta * degToRad;   // x
+        const _gamma = gamma * degToRad; // y
 
-    const y = Math.sin(Δλ) * Math.cos(φ2);
-    const x = Math.cos(φ1) * Math.sin(φ2) -
-              Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-    let bearing = Math.atan2(y, x) * 180 / Math.PI;
-    return (bearing + 360) % 360;
-}
+        const cA = Math.cos(_alpha), sA = Math.sin(_alpha);
+        const cB = Math.cos(_beta),  sB = Math.sin(_beta);
+        const cG = Math.cos(_gamma), sG = Math.sin(_gamma);
 
-// Surveiller la position GPS de l'utilisateur et mettre à jour targetBearing
-if ('geolocation' in navigator) {
-    navigator.geolocation.watchPosition((position) => {
-        userCoords = {
-            lat: position.coords.latitude,
-            lon: position.coords.longitude
-        };
-        targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
+        // Rotation matrix components (device -> world)
+        // Following Z (alpha), X (beta), Y (gamma) convention (Tait-Bryan ZXY)
+        const m11 = cA * cG - sA * sB * sG;
+        const m12 = -cB * sA;
+        const m13 = cA * sG + cG * sA * sB;
+
+        const m21 = cG * sA + cA * sB * sG;
+        const m22 = cA * cB;
+        const m23 = sA * sG - cA * cG * sB;
+
+        const m31 = -cB * sG;
+        const m32 = sB;
+        const m33 = cB * cG;
+
+        // Device Y axis (top of the device) in world coordinates is column 2
+        const topX = m12;
+        const topY = m22;
+
+        // Project onto horizontal plane (ignore Z)
+        let heading = Math.atan2(topX, topY) * 180 / Math.PI; // from north
+        if (heading < 0) heading += 360;
+
+        // Compensate for screen orientation
+        const screenAngle = (window.screen && window.screen.orientation && window.screen.orientation.angle) || window.orientation || 0;
+        heading = (heading - screenAngle + 360) % 360;
+
+        return heading;
+    }
+
+    // Smooth angle interpolation (shortest path)
+    function smoothAngle(prev, target, factor) {
+        prev = ((prev % 360) + 360) % 360;
+        target = ((target % 360) + 360) % 360;
+        let delta = target - prev;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        return prev + delta * factor;
+    }
         const dist = getDistance(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
         if (distanceEl) distanceEl.textContent = `${Math.round(dist)} m`;
     }, (err) => {
@@ -78,39 +112,48 @@ function updateHeadingDisplay(h) {
 }
 
 function handleOrientationEvent(e) {
-    let heading = null;
+    // Prefer native compass if available (iOS), otherwise compute from alpha/beta/gamma
+    let deviceHeading = null;
+    let a = e.alpha, b = e.beta, g = e.gamma;
     if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
-        heading = e.webkitCompassHeading; // iOS devices
-    } else if (e.alpha !== null) {
-        // Préférer un calcul à partir de alpha/beta/gamma si disponibles
-        if (e.beta !== undefined && e.gamma !== undefined && e.beta !== null && e.gamma !== null) {
-            heading = getCompassHeading(e.alpha, e.beta, e.gamma);
-        } else {
-            heading = 360 - e.alpha; // fallback when only alpha is available
-        }
+        deviceHeading = e.webkitCompassHeading; // already compensated on iOS
+    } else if (a !== null && b !== null && g !== null) {
+        // Compute tilt-compensated heading using rotation matrix
+        deviceHeading = getCompassHeading(a, b, g);
+    } else if (a !== null) {
+        deviceHeading = (360 - a) % 360; // best-effort fallback
     }
-    if (heading !== null) {
+
+    if (deviceHeading !== null) {
         usingSensors = true;
-        const deviceHeading = heading;
-        // Calculer angle relatif du téléphone vers la cible (0..359)
+        // compute relative bearing from device to target (0..359)
         const relative = ((targetBearing - deviceHeading) % 360 + 360) % 360;
-        // baseRotation : rotation à appliquer sans offset
+        // base rotation to draw on screen (arrow graphic points down by default)
         const baseRotation = (relative + 180) % 360;
         lastDeviceHeading = deviceHeading;
         lastBaseRotation = baseRotation;
-        // Appliquer calibration offset
-        const rotationToApply = ((baseRotation + calibrationOffset) % 360 + 360) % 360;
-        rotateTo(rotationToApply);
+
+        // apply calibration offset
+        const desiredRotation = ((baseRotation + calibrationOffset) % 360 + 360) % 360;
+
+        // smoothing (low-pass) on angles
+        const smoothFactor = 0.12; // lower = smoother
+        const smoothed = smoothAngle(currentAngle % 360, desiredRotation, smoothFactor);
+
+        rotateTo(smoothed);
         updateHeadingDisplay(deviceHeading);
-        // Update debug if visible
+
+        // Update debug with sensor values
         if (debugEl) {
             debugEl.style.display = 'block';
+            const screenAngle = (window.screen && window.screen.orientation && window.screen.orientation.angle) || window.orientation || 0;
             debugEl.textContent = `deviceHeading: ${deviceHeading.toFixed(1)}°\n` +
                                   `targetBearing: ${targetBearing.toFixed(1)}°\n` +
-                                  `relative: ${relative.toFixed(1)}°\n` +
                                   `baseRotation: ${baseRotation.toFixed(1)}°\n` +
                                   `calibrationOffset: ${calibrationOffset.toFixed(1)}°\n` +
-                                  `appliedRotation: ${rotationToApply.toFixed(1)}°\n` +
+                                  `appliedRotation: ${((smoothed%360)+360)%360 .toFixed(1)}°\n` +
+                                  `screenAngle: ${screenAngle}°\n` +
+                                  `alpha: ${a.toFixed(1)}°, beta: ${b.toFixed(1)}°, gamma: ${g.toFixed(1)}°\n` +
                                   `userCoords: ${userCoords ? userCoords.lat.toFixed(6) + ',' + userCoords.lon.toFixed(6) : 'n/a'}`;
         }
     }
