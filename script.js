@@ -9,60 +9,13 @@ const debugEl = document.getElementById('debug');
 
 let currentAngle = 0; // current drawn rotation (degrees)
 let usingSensors = false;
-
-// Coordonnées de la cible (42°51'13.6"N 3°02'18.3"E converties en décimal)
-const targetCoords = { lat: 42.853778, lon: 3.038417 };
-
-// Variables pour position utilisateur et bearing cible
-let userCoords = null;
-let targetBearing = 0;
 let calibrationOffset = 0; // degrees added to final rotation
 let lastDeviceHeading = null;
-let lastBaseRotation = null;
 let northArrow = document.querySelector('.north-arrow');
 let northCurrentAngle = 0;
 
-// --- Geolocation helpers --------------------------------------------------
-function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // metres
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-}
-
-function getBearing(lat1, lon1, lat2, lon2) {
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-
-    const y = Math.sin(Δλ) * Math.cos(φ2);
-    const x = Math.cos(φ1) * Math.sin(φ2) -
-              Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-    let bearing = Math.atan2(y, x) * 180 / Math.PI;
-    return (bearing + 360) % 360;
-}
-
-// Watch user's GPS and update target bearing + distance
-if ('geolocation' in navigator) {
-    navigator.geolocation.watchPosition((position) => {
-        userCoords = { lat: position.coords.latitude, lon: position.coords.longitude };
-        targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
-        const dist = getDistance(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
-        if (distanceEl) distanceEl.textContent = `${Math.round(dist)} m`;
-    }, (err) => {
-        console.error('Erreur GPS:', err);
-        if (distanceEl) distanceEl.textContent = 'GPS erreur';
-    }, { enableHighAccuracy: true });
-} else {
-    if (distanceEl) distanceEl.textContent = 'Geoloc non dispo';
-}
+// Remove GPS logic: this script points to true north only
+if (distanceEl) distanceEl.textContent = '-- m';
 
 // --- Rotation & smoothing helpers ---------------------------------------
 function normalize360(a){ return ((a % 360) + 360) % 360; }
@@ -159,28 +112,21 @@ function handleOrientationEvent(e) {
 
     usingSensors = true;
 
-    // Compute relative bearing from device to target (0..359)
-    const relative = normalize360(targetBearing - deviceHeading);
-    // base rotation to draw on screen (arrow graphic points down by default)
-    const baseRotation = normalize360(relative + 180);
-
+    // For north-only behaviour: compute the arrow rotation so the red arrow points to geographic north
     lastDeviceHeading = deviceHeading;
-    lastBaseRotation = baseRotation;
-
-    // Apply calibration offset
+    // arrow graphic points down by default: arrowRotation = 180 - deviceHeading
+    let baseRotation = normalize360(180 - deviceHeading);
+    // Apply calibration offset (user can calibrate if needed)
     const desiredRotation = normalize360(baseRotation + calibrationOffset);
-
-    // Smoothing: low-pass filter on angle (shortest path)
-    const smoothFactor = 0.12; // 0.0..1.0, lower = smoother/slower
+    const smoothFactor = 0.12;
     const smoothed = smoothAngle(currentAngle % 360, desiredRotation, smoothFactor);
-
     rotateTo(smoothed);
     updateHeadingDisplay(deviceHeading);
 
-    // Update north needle: it should always point to geographic north
+    // North needle: show true north (no calibration applied)
     if (northArrow) {
         const northDesired = normalize360(180 - deviceHeading);
-        const northSmoothed = smoothAngle(northCurrentAngle, northDesired, 0.12);
+        const northSmoothed = smoothAngle(northCurrentAngle, northDesired, smoothFactor);
         northCurrentAngle = northSmoothed;
         northArrow.style.transform = `translateX(-50%) rotate(${northSmoothed}deg)`;
     }
@@ -240,9 +186,10 @@ enableBtn.addEventListener('click', enableDeviceOrientation);
 // --- Calibration controls -----------------------------------------------
 if (calibrateBtn) {
     calibrateBtn.addEventListener('click', () => {
-        if (lastBaseRotation == null) return;
-        // we want baseRotation + calibrationOffset === 0 (arrow pointing to actual target)
-        calibrationOffset = normalize360(0 - lastBaseRotation);
+        if (lastDeviceHeading == null) return;
+        // Set calibration so arrow points to true north when pressed (user should physically face north first)
+        // baseRotation = 180 - deviceHeading ; we want baseRotation + offset === 0 => offset = deviceHeading - 180
+        calibrationOffset = normalize360(lastDeviceHeading - 180);
         if (debugEl) debugEl.textContent += `\nCalibrated: offset=${calibrationOffset.toFixed(1)}°`;
     });
 }
