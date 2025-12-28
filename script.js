@@ -29,7 +29,9 @@ function handleOrientationEvent(e) {
     }
     if (heading !== null) {
         usingSensors = true;
-        rotateTo(heading);
+        // L'aiguille dans le CSS pointe vers le bas par défaut,
+        // on ajoute 180° pour qu'elle pointe vers le nord réel.
+        rotateTo(heading + 180);
         updateHeadingDisplay(heading);
     }
 }
@@ -64,7 +66,8 @@ function onMouseMove(e) {
     const compassY = compassRect.top + compassRect.height / 2;
     const angleRad = Math.atan2(e.clientY - compassY, e.clientX - compassX);
     const targetAngle = angleRad * (180 / Math.PI) + 90;
-    rotateTo(targetAngle);
+    // Même compensation que pour les capteurs : ajouter 180°
+    rotateTo(targetAngle + 180);
     const deltaX = e.clientX - compassX;
     const deltaY = e.clientY - compassY;
     const distance = Math.round(Math.sqrt(deltaX * deltaX + deltaY * deltaY));
