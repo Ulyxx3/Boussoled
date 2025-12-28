@@ -3,6 +3,9 @@ const compass = document.querySelector('.compass');
 const headingEl = document.getElementById('heading');
 const distanceEl = document.getElementById('distance');
 const enableBtn = document.getElementById('enableCompass');
+const calibrateBtn = document.getElementById('calibrateBtn');
+const resetCalibBtn = document.getElementById('resetCalibBtn');
+const debugEl = document.getElementById('debug');
 
 let currentAngle = 0;
 let usingSensors = false;
@@ -13,6 +16,9 @@ const targetCoords = { lat: 42.851556, lon: 3.034500 };
 // Variables pour position utilisateur et bearing cible
 let userCoords = null;
 let targetBearing = 0;
+let calibrationOffset = 0; // degrees to add to final rotation
+let lastDeviceHeading = null;
+let lastBaseRotation = null;
 
 // Calculer la distance entre deux points GPS (en mètres)
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -85,14 +91,28 @@ function handleOrientationEvent(e) {
     }
     if (heading !== null) {
         usingSensors = true;
-        // Si on a la bearing de la cible (targetBearing) on calcule
-        // l'angle relatif : direction cible - direction téléphone
-        // puis on transforme en rotation écran (arrow pointe vers le sud par défaut)
         const deviceHeading = heading;
-        const relative = ((targetBearing - deviceHeading) % 360 + 360) % 360; // 0..359
-        const rotationToApply = relative - 180; // convert to arrow rotation
+        // Calculer angle relatif du téléphone vers la cible (0..359)
+        const relative = ((targetBearing - deviceHeading) % 360 + 360) % 360;
+        // baseRotation : rotation à appliquer sans offset
+        const baseRotation = (relative + 180) % 360;
+        lastDeviceHeading = deviceHeading;
+        lastBaseRotation = baseRotation;
+        // Appliquer calibration offset
+        const rotationToApply = ((baseRotation + calibrationOffset) % 360 + 360) % 360;
         rotateTo(rotationToApply);
         updateHeadingDisplay(deviceHeading);
+        // Update debug if visible
+        if (debugEl) {
+            debugEl.style.display = 'block';
+            debugEl.textContent = `deviceHeading: ${deviceHeading.toFixed(1)}°\n` +
+                                  `targetBearing: ${targetBearing.toFixed(1)}°\n` +
+                                  `relative: ${relative.toFixed(1)}°\n` +
+                                  `baseRotation: ${baseRotation.toFixed(1)}°\n` +
+                                  `calibrationOffset: ${calibrationOffset.toFixed(1)}°\n` +
+                                  `appliedRotation: ${rotationToApply.toFixed(1)}°\n` +
+                                  `userCoords: ${userCoords ? userCoords.lat.toFixed(6) + ',' + userCoords.lon.toFixed(6) : 'n/a'}`;
+        }
     }
 }
 
@@ -138,6 +158,25 @@ function enableDeviceOrientation() {
 }
 
 enableBtn.addEventListener('click', enableDeviceOrientation);
+
+// Calibrate button: when user points phone physically toward the real target
+// and clicks "Calibrer", we set calibrationOffset so arrow aligns with that
+// physical direction (i.e. sets appliedRotation → baseRotation + offset = 0).
+if (calibrateBtn) {
+    calibrateBtn.addEventListener('click', () => {
+        if (lastBaseRotation == null) return;
+        // we want (baseRotation + calibrationOffset) %360 === 0
+        calibrationOffset = ((0 - lastBaseRotation) % 360 + 360) % 360;
+        if (debugEl) debugEl.textContent += `\nCalibrated: offset=${calibrationOffset.toFixed(1)}°`;
+    });
+}
+
+if (resetCalibBtn) {
+    resetCalibBtn.addEventListener('click', () => {
+        calibrationOffset = 0;
+        if (debugEl) debugEl.textContent += '\nCalibration reset';
+    });
+}
 
 // Fallback to mouse if no sensors available
 function onMouseMove(e) {

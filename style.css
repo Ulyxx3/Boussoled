@@ -100,6 +100,28 @@ h1 {
     font-size: 16px;
 }
 
+#calibrateBtn, #resetCalibBtn {
+    background: rgba(255,255,255,0.04);
+    color: rgb(255,100,100);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-left: 8px;
+    font-size: 14px;
+}
+
+#debug {
+    margin-top: 8px;
+    text-align: left;
+    max-width: 320px;
+    background: rgba(0,0,0,0.6);
+    color: #0ff;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
 #heading {
     margin-top: 8px;
     font-size: 18px;
