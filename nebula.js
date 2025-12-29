@@ -3,7 +3,7 @@
     constructor(canvasId, options = {}) {
       this.canvas = document.getElementById(canvasId);
       if (!this.canvas) { console.error('Canvas not found:', canvasId); return; }
-      this.config = { ...{"particleCount":5000,"baseRadius":300,"interactionRadius":1500,"warpStrength":6,"rotationSpeed":0.15,"colorTheme":"fire","hoverType":"attract"}, ...options };
+      this.config = { ...{"particleCount":5000,"baseRadius":300,"interactionRadius":1800,"warpStrength":6,"rotationSpeed":0.15,"colorTheme":"fire","hoverType":"attract","needleOutset":300}, ...options };
       this.ctx = this.canvas.getContext('2d');
       this.particles = [];
       this.mouse = { x: 0, y: 0, isActive: false };
@@ -80,7 +80,10 @@
           const centerX = compRect.left + compRect.width/2;
           const centerY = compRect.top + compRect.height/2;
           // put the interaction on the outer edge (slightly inset)
-          const radius = Math.min(compRect.width, compRect.height)/2 - 6;
+          // Place tip on outer edge plus an outward outset so the interaction
+          // sits beyond the visible compass perimeter by `needleOutset` px.
+          const outset = (this.config && typeof this.config.needleOutset === 'number') ? this.config.needleOutset : 0;
+          const radius = Math.min(compRect.width, compRect.height)/2 - 6 + outset;
 
           // arrow graphic points down at rotation=0, so direction vector = (sin, cos)
           const tipX = centerX + Math.sin(rot) * radius;
