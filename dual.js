@@ -200,8 +200,7 @@
     const compassY = compassRect.top + compassRect.height/2;
     const angleRad = Math.atan2(e.clientY - compassY, e.clientX - compassX);
     const targetAngle = angleRad * 180 / Math.PI + 90;
-    const baseRotation = normalize360(targetAngle + 180);
-    const smoothed = smoothAngle(currentAngle % 360, baseRotation, 0.2);
+    const smoothed = smoothAngle(currentAngle % 360, targetAngle, 0.2);
     rotateTo(smoothed);
   }
 

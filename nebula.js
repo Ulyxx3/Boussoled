@@ -63,16 +63,27 @@
           const tipY = nr.top;
           this.mouse.x = tipX - canvasRect.left; this.mouse.y = tipY - canvasRect.top; this.mouse.isActive = true;
         } else {
-          // extract rotation angle from computed transform matrix
+          // extract rotation angle from transform string (try rotate() value first)
           const cs = window.getComputedStyle(this.needleElem);
           const tr = cs.transform || cs.webkitTransform || 'none';
-          let rot = 0;
+          let rot = 0; // in radians
+          
+          // Try to parse rotate() directly from transform property
           if (tr && tr !== 'none') {
-            const m = tr.match(/matrix\(([-0-9.,e ]+)\)/);
-            if (m) {
-              const vals = m[1].split(',').map(v => parseFloat(v));
-              const a = vals[0], b = vals[1];
-              rot = Math.atan2(b, a); // radians
+            // look for rotate(Xdeg) or rotate(Xrad)
+            const rotMatch = tr.match(/rotate\(([-0-9.]+)(deg|rad)?\)/);
+            if (rotMatch) {
+              let angle = parseFloat(rotMatch[1]);
+              const unit = rotMatch[2] || 'deg';
+              rot = unit === 'rad' ? angle : angle * Math.PI / 180;
+            } else {
+              // fallback: extract from matrix
+              const m = tr.match(/matrix\(([-0-9.,e ]+)\)/);
+              if (m) {
+                const vals = m[1].split(',').map(v => parseFloat(v));
+                const a = vals[0], b = vals[1];
+                rot = Math.atan2(b, a);
+              }
             }
           }
 
@@ -85,9 +96,13 @@
           const outset = (this.config && typeof this.config.needleOutset === 'number') ? this.config.needleOutset : 0;
           const radius = Math.min(compRect.width, compRect.height)/2 - 6 + outset;
 
-          // arrow graphic points down at rotation=0, so direction vector = (sin, cos)
-          const tipX = centerX + Math.sin(rot) * radius;
-          const tipY = centerY + Math.cos(rot) * radius;
+          // arrow graphic points down at rotation=0 (CSS coordinate system)
+          // At 0°: sin(0)=0, cos(0)=1 → (0, 1) = down ✓
+          // At 90°: sin(π/2)=1, cos(π/2)=0 → (1, 0) = right ✓
+          // Add π to point in opposite direction (nebula effect center vs needle tip)
+          const adjRot = rot + Math.PI;
+          const tipX = centerX + Math.sin(adjRot) * radius;
+          const tipY = centerY + Math.cos(adjRot) * radius;
 
           // convert to canvas-local coords (previously mouse was client-relative to canvas)
           this.mouse.x = tipX - canvasRect.left;
