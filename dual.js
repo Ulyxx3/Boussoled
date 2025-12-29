@@ -2,17 +2,13 @@
   'use strict';
 
   // DOM nodes will be queried on init to avoid timing issues on mobile
-  let arrow, compass, headingEl, distanceEl, enableBtn, calibrateBtn, resetCalibBtn, debugEl, northArrow, debugToggleBtn;
+  let arrow, compass, headingEl, distanceEl, enableBtn, debugEl;
 
   // target coords (example)
   const targetCoords = { lat: 42.851556, lon: 3.034500 };
 
   let currentAngle = 0;
-  let northCurrentAngle = 0;
   let usingSensors = false;
-  let calibrationOffset = 0; // for red arrow
-  let lastDeviceHeading = null;
-  let lastBaseRotation = null;
 
   // GPS
   let userCoords = null;
@@ -104,7 +100,7 @@
     return 0;
   }
 
-  // orientation event
+  // orientation event - GPS-only: always point to target
   function handleOrientationEvent(e) {
     const a = (typeof e.alpha === 'number') ? e.alpha : null;
     const b = (typeof e.beta === 'number') ? e.beta : null;
@@ -121,42 +117,25 @@
     if (deviceHeading === null) return;
 
     usingSensors = true;
-    lastDeviceHeading = deviceHeading;
 
-    // north needle (blue) always points to geographic north
-    const northDesired = normalize360(180 - deviceHeading);
-    northCurrentAngle = smoothAngle(northCurrentAngle, northDesired, 0.12);
-    if (northArrow) northArrow.style.transform = `translateX(-50%) rotate(${northCurrentAngle}deg)`;
-
-    // red needle: depending on mode
-    const mode = localStorage.getItem('compassMode') || 'north';
-    let baseRotation;
-    if (mode === 'gps' && userCoords) {
-      // compute relative bearing to target
+    // GPS-only: always point to target bearing
+    if (userCoords) {
       targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
       const relative = normalize360(targetBearing - deviceHeading);
-      baseRotation = normalize360(relative + 180);
-    } else {
-      // point to north
-      baseRotation = normalize360(180 - deviceHeading);
-    }
-    lastBaseRotation = baseRotation;
-    const desiredRotation = normalize360(baseRotation + calibrationOffset);
-    const smoothed = smoothAngle(currentAngle % 360, desiredRotation, 0.12);
-    rotateTo(smoothed);
-    updateHeadingDisplay(deviceHeading);
+      const baseRotation = normalize360(relative + 180);
+      const smoothed = smoothAngle(currentAngle % 360, baseRotation, 0.12);
+      rotateTo(smoothed);
+      updateHeadingDisplay(targetBearing);
 
-    if (debugEl) {
-      debugEl.style.display = 'block';
-      const screenAngle = (window.screen && window.screen.orientation && window.screen.orientation.angle) || window.orientation || 0;
-      debugEl.textContent = `deviceHeading: ${deviceHeading.toFixed(1)}°\n` +
-                            `targetBearing: ${typeof targetBearing === 'number'?targetBearing.toFixed(1)+'°':'n/a'}\n` +
-                            `baseRotation: ${baseRotation.toFixed(1)}°\n` +
-                            `calibrationOffset: ${calibrationOffset.toFixed(1)}°\n` +
-                            `appliedRotation: ${normalize360(smoothed).toFixed(1)}°\n` +
-                            `screenAngle: ${screenAngle}°\n` +
-                            `alpha: ${a!==null?a.toFixed(1):'n/a'}°, beta: ${b!==null?b.toFixed(1):'n/a'}°, gamma: ${g!==null?g.toFixed(1):'n/a'}°\n` +
-                            `userCoords: ${userCoords?userCoords.lat.toFixed(6)+','+userCoords.lon.toFixed(6):'n/a'}`;
+      if (debugEl && debugEl.style.display === 'block') {
+        const screenAngle = (window.screen && window.screen.orientation && window.screen.orientation.angle) || window.orientation || 0;
+        debugEl.textContent = `deviceHeading: ${deviceHeading.toFixed(1)}°\n` +
+                              `targetBearing: ${targetBearing.toFixed(1)}°\n` +
+                              `baseRotation: ${baseRotation.toFixed(1)}°\n` +
+                              `screenAngle: ${screenAngle}°\n` +
+                              `alpha: ${a!==null?a.toFixed(1):'n/a'}°, beta: ${b!==null?b.toFixed(1):'n/a'}°, gamma: ${g!==null?g.toFixed(1):'n/a'}°\n` +
+                              `userCoords: ${userCoords.lat.toFixed(6)},${userCoords.lon.toFixed(6)}`;
+      }
     }
   }
 
@@ -189,59 +168,32 @@
     headingEl = document.getElementById('heading');
     distanceEl = document.getElementById('distance');
     enableBtn = document.getElementById('enableCompass');
-    calibrateBtn = document.getElementById('calibrateBtn');
-    resetCalibBtn = document.getElementById('resetCalibBtn');
     debugEl = document.getElementById('debug');
-    northArrow = document.querySelector('.north-arrow');
-    debugToggleBtn = document.getElementById('debugToggle');
 
     if (enableBtn) enableBtn.addEventListener('click', enableDeviceOrientation);
-    if (calibrateBtn) calibrateBtn.addEventListener('click', () => {
-      if (lastBaseRotation == null) return;
-      calibrationOffset = normalize360(0 - lastBaseRotation);
-      if (debugEl) debugEl.textContent += `\nCalibrated: offset=${calibrationOffset.toFixed(1)}°`;
-    });
-    if (resetCalibBtn) resetCalibBtn.addEventListener('click', () => { calibrationOffset = 0; if (debugEl) debugEl.textContent += '\nCalibration reset'; });
-    if (debugToggleBtn) debugToggleBtn.addEventListener('click', () => {
-      if (!debugEl) return;
-      debugEl.style.display = (debugEl.style.display === 'block') ? 'none' : 'block';
-    });
 
     // geolocation watch (start after DOM ready for better prompt behavior)
     if ('geolocation' in navigator) {
       navigator.geolocation.watchPosition((position) => {
         userCoords = { lat: position.coords.latitude, lon: position.coords.longitude };
-        targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
         const dist = getDistance(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
         if (distanceEl) distanceEl.textContent = `${Math.round(dist)} m`;
       }, (err) => {
-        console.error('Erreur GPS:', err);
-        if (distanceEl) distanceEl.textContent = 'GPS erreur';
-      }, { enableHighAccuracy: true });
+        console.error('GPS error:', err);
+        if (distanceEl) distanceEl.textContent = 'GPS off';
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 });
     } else {
-      if (distanceEl) distanceEl.textContent = 'Geoloc non dispo';
+      if (distanceEl) distanceEl.textContent = 'No geolocation';
     }
 
     // mouse fallback
-    setTimeout(() => { if (!usingSensors) { document.addEventListener('mousemove', onMouseMove); updateHeadingDisplay('--'); } }, 1000);
+    setTimeout(() => { if (!usingSensors) { document.addEventListener('mousemove', onMouseMove); updateHeadingDisplay('0°'); } }, 1000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  // calibration
-  if (calibrateBtn) {
-    calibrateBtn.addEventListener('click', () => {
-      if (lastBaseRotation == null) return;
-      calibrationOffset = normalize360(0 - lastBaseRotation);
-      if (debugEl) debugEl.textContent += `\nCalibrated: offset=${calibrationOffset.toFixed(1)}°`;
-    });
-  }
-  if (resetCalibBtn) {
-    resetCalibBtn.addEventListener('click', () => { calibrationOffset = 0; if (debugEl) debugEl.textContent += '\nCalibration reset'; });
-  }
-
-  // mouse fallback
+  // mouse fallback (desktop testing only)
   function onMouseMove(e) {
     const compassRect = compass.getBoundingClientRect();
     const compassX = compassRect.left + compassRect.width/2;
@@ -249,20 +201,8 @@
     const angleRad = Math.atan2(e.clientY - compassY, e.clientX - compassX);
     const targetAngle = angleRad * 180 / Math.PI + 90;
     const baseRotation = normalize360(targetAngle + 180);
-    const desired = normalize360(baseRotation + calibrationOffset);
-    const smoothed = smoothAngle(currentAngle % 360, desired, 0.2);
+    const smoothed = smoothAngle(currentAngle % 360, baseRotation, 0.2);
     rotateTo(smoothed);
-    // north arrow assume up == north for mouse fallback
-    if (northArrow) {
-      const northSmoothed = smoothAngle(northCurrentAngle, 180, 0.2);
-      northCurrentAngle = northSmoothed;
-      northArrow.style.transform = `translateX(-50%) rotate(${northSmoothed}deg)`;
-    }
-    const deltaX = e.clientX - compassX, deltaY = e.clientY - compassY;
-    const distance = Math.round(Math.sqrt(deltaX*deltaX + deltaY*deltaY));
-    updateHeadingDisplay(`${Math.round(normalize360(currentAngle))}° • ${distance}px`);
   }
-
-  setTimeout(() => { if (!usingSensors) { document.addEventListener('mousemove', onMouseMove); updateHeadingDisplay('--'); } }, 1000);
 
 })();
