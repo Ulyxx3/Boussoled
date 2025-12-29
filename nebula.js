@@ -52,8 +52,7 @@
       if (this.useNeedleTip && this.needleElem) {
         // Use angle from dual.js which is the source of truth
         const angleFromDual = (typeof window.compassAngle === 'number') ? window.compassAngle : 0;
-        // Adjust by -90° to correct coordinate system mismatch
-        const rot = (angleFromDual) * Math.PI / 180; // convert to radians
+        const rot = angleFromDual * Math.PI / 180; // convert to radians
         
         const compassEl = this.needleElem.closest('.compass');
         const compRect = compassEl ? compassEl.getBoundingClientRect() : null;
@@ -68,11 +67,8 @@
           const radius = Math.min(compRect.width, compRect.height)/2 - 6 + outset;
 
           // arrow graphic points down at rotation=0 (CSS coordinate system)
-          // Vector pointing in direction arrow faces:
-          // 0°: (sin(0), cos(0)) = (0, 1) = down ✓
-          // 90°: (sin(π/2), cos(π/2)) = (1, 0) = right ✓
-          // 180°: (sin(π), cos(π)) = (0, -1) = up ✓
-          const tipX = centerX + Math.sin(rot) * radius;
+          // Invert X axis to fix direction
+          const tipX = centerX - Math.sin(rot) * radius;
           const tipY = centerY + Math.cos(rot) * radius;
 
           // convert to canvas-local coords
@@ -91,7 +87,8 @@
       }
       const mouseRelX = (this.mouse.x * (width / this.canvas.offsetWidth)) - cx;
       const mouseRelY = (this.mouse.y * (height / this.canvas.offsetHeight)) - cy;
-      const rotX = this.mouse.isActive ? mouseRelY * 0.0001 : 0; const rotY = this.mouse.isActive ? mouseRelX * 0.0001 : 0;
+      // Invert rotation direction so sphere follows needle instead of opposite
+      const rotX = this.mouse.isActive ? -mouseRelY * 0.0001 : 0; const rotY = this.mouse.isActive ? -mouseRelX * 0.0001 : 0;
       this.particles.forEach(p => {
         let tx = p.baseX * Math.cos(time) - p.baseZ * Math.sin(time);
         let tz = p.baseX * Math.sin(time) + p.baseZ * Math.cos(time);
