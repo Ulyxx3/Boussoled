@@ -14,6 +14,9 @@
   let userCoords = null;
   let targetBearing = 0;
 
+  // Expose currentAngle globally so nebula.js can read it
+  window.compassAngle = 0;
+
   // utils
   function normalize360(a){ return ((a % 360) + 360) % 360; }
   function smoothAngle(prev, target, factor) {
@@ -30,6 +33,8 @@
     else if (angleDiff < -180) angleDiff += 360;
     currentAngle += angleDiff;
     if (arrow) arrow.style.transform = `translateX(-50%) rotate(${currentAngle}deg)`;
+    // Keep global angle in sync for nebula.js to read
+    window.compassAngle = currentAngle;
   }
   function updateHeadingDisplay(h) {
     if (!headingEl) return;

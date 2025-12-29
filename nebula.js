@@ -50,61 +50,40 @@
       const time = Date.now() * 0.001 * this.config.rotationSpeed;
       // If using needle tip as source, update mouse coords from needle
       if (this.useNeedleTip && this.needleElem) {
-        // Compute the tip position from the arrow rotation and compass bounds so
-        // the effect stays on the outer edge of the compass (not near center).
+        // Use angle from dual.js which is the source of truth
+        const angleFromDual = (typeof window.compassAngle === 'number') ? window.compassAngle : 0;
+        // Adjust by -90° to correct coordinate system mismatch
+        const rot = (angleFromDual) * Math.PI / 180; // convert to radians
+        
         const compassEl = this.needleElem.closest('.compass');
         const compRect = compassEl ? compassEl.getBoundingClientRect() : null;
         const canvasRect = this.canvas.getBoundingClientRect();
 
-        // fallback to bounding rect center if no compass found
-        if (!compRect) {
-          const nr = this.needleElem.getBoundingClientRect();
-          const tipX = nr.left + nr.width/2;
-          const tipY = nr.top;
-          this.mouse.x = tipX - canvasRect.left; this.mouse.y = tipY - canvasRect.top; this.mouse.isActive = true;
-        } else {
-          // extract rotation angle from transform string (try rotate() value first)
-          const cs = window.getComputedStyle(this.needleElem);
-          const tr = cs.transform || cs.webkitTransform || 'none';
-          let rot = 0; // in radians
-          
-          // Try to parse rotate() directly from transform property
-          if (tr && tr !== 'none') {
-            // look for rotate(Xdeg) or rotate(Xrad)
-            const rotMatch = tr.match(/rotate\(([-0-9.]+)(deg|rad)?\)/);
-            if (rotMatch) {
-              let angle = parseFloat(rotMatch[1]);
-              const unit = rotMatch[2] || 'deg';
-              rot = unit === 'rad' ? angle : angle * Math.PI / 180;
-            } else {
-              // fallback: extract from matrix
-              const m = tr.match(/matrix\(([-0-9.,e ]+)\)/);
-              if (m) {
-                const vals = m[1].split(',').map(v => parseFloat(v));
-                const a = vals[0], b = vals[1];
-                rot = Math.atan2(b, a);
-              }
-            }
-          }
-
+        if (compRect) {
           // compass center
           const centerX = compRect.left + compRect.width/2;
           const centerY = compRect.top + compRect.height/2;
           // put the interaction on the outer edge (slightly inset)
-          // Place tip on outer edge plus an outward outset so the interaction
-          // sits beyond the visible compass perimeter by `needleOutset` px.
           const outset = (this.config && typeof this.config.needleOutset === 'number') ? this.config.needleOutset : 0;
           const radius = Math.min(compRect.width, compRect.height)/2 - 6 + outset;
 
           // arrow graphic points down at rotation=0 (CSS coordinate system)
-          // At 0°: sin(0)=0, cos(0)=1 → (0, 1) = down ✓
-          // At 90°: sin(π/2)=1, cos(π/2)=0 → (1, 0) = right ✓
-          // Add π to point in opposite direction (nebula effect center vs needle tip)
-          const adjRot = rot + Math.PI;
-          const tipX = centerX + Math.sin(adjRot) * radius;
-          const tipY = centerY + Math.cos(adjRot) * radius;
+          // Vector pointing in direction arrow faces:
+          // 0°: (sin(0), cos(0)) = (0, 1) = down ✓
+          // 90°: (sin(π/2), cos(π/2)) = (1, 0) = right ✓
+          // 180°: (sin(π), cos(π)) = (0, -1) = up ✓
+          const tipX = centerX + Math.sin(rot) * radius;
+          const tipY = centerY + Math.cos(rot) * radius;
 
-          // convert to canvas-local coords (previously mouse was client-relative to canvas)
+          // convert to canvas-local coords
+          this.mouse.x = tipX - canvasRect.left;
+          this.mouse.y = tipY - canvasRect.top;
+          this.mouse.isActive = true;
+        } else {
+          // fallback if compass not found
+          const nr = this.needleElem.getBoundingClientRect();
+          const tipX = nr.left + nr.width/2;
+          const tipY = nr.top;
           this.mouse.x = tipX - canvasRect.left;
           this.mouse.y = tipY - canvasRect.top;
           this.mouse.isActive = true;
