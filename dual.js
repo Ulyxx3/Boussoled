@@ -1,15 +1,8 @@
 (function(){
   'use strict';
 
-  const arrow = document.querySelector('.arrow');
-  const compass = document.querySelector('.compass');
-  const headingEl = document.getElementById('heading');
-  const distanceEl = document.getElementById('distance');
-  const enableBtn = document.getElementById('enableCompass');
-  const calibrateBtn = document.getElementById('calibrateBtn');
-  const resetCalibBtn = document.getElementById('resetCalibBtn');
-  const debugEl = document.getElementById('debug');
-  const northArrow = document.querySelector('.north-arrow');
+  // DOM nodes will be queried on init to avoid timing issues on mobile
+  let arrow, compass, headingEl, distanceEl, enableBtn, calibrateBtn, resetCalibBtn, debugEl, northArrow, debugToggleBtn;
 
   // target coords (example)
   const targetCoords = { lat: 42.851556, lon: 3.034500 };
@@ -91,6 +84,26 @@
     return heading;
   }
 
+  // parse rotation angle (radians) from computed transform string
+  function parseRotationFromTransform(transformStr) {
+    if (!transformStr || transformStr === 'none') return 0;
+    // 2D matrix: matrix(a, b, c, d, tx, ty)
+    const m2 = transformStr.match(/matrix\(([^)]+)\)/);
+    if (m2) {
+      const vals = m2[1].split(',').map(s => parseFloat(s));
+      const a = vals[0], b = vals[1];
+      return Math.atan2(b, a);
+    }
+    // 3D matrix: matrix3d(...16 values...)
+    const m3 = transformStr.match(/matrix3d\(([^)]+)\)/);
+    if (m3) {
+      const vals = m3[1].split(',').map(s => parseFloat(s));
+      const a = vals[0], b = vals[1];
+      return Math.atan2(b, a);
+    }
+    return 0;
+  }
+
   // orientation event
   function handleOrientationEvent(e) {
     const a = (typeof e.alpha === 'number') ? e.alpha : null;
@@ -149,7 +162,7 @@
 
   // enable device orientation
   function enableDeviceOrientation() {
-    try { enableBtn.disabled = true; enableBtn.textContent = 'Demande permission...'; } catch(e){}
+    try { if (enableBtn) { enableBtn.disabled = true; enableBtn.textContent = 'Demande permission...'; } } catch(e){}
     const onSuccessAttach = () => { try { enableBtn.textContent = 'Activée'; enableBtn.style.display = 'none'; } catch(e){} };
     const onFailAttach = (msg) => { try { enableBtn.disabled = false; enableBtn.textContent = msg || 'Activation échouée'; } catch(e){} if (debugEl) { debugEl.style.display = 'block'; debugEl.textContent = 'Activation error: ' + (msg || 'unknown'); } };
 
@@ -169,22 +182,52 @@
     } else onFailAttach('Capteur non disponible');
   }
 
-  if (enableBtn) enableBtn.addEventListener('click', enableDeviceOrientation);
+  // Initialize after DOM ready to ensure elements exist (mobile reliability)
+  function init() {
+    arrow = document.querySelector('.arrow');
+    compass = document.querySelector('.compass');
+    headingEl = document.getElementById('heading');
+    distanceEl = document.getElementById('distance');
+    enableBtn = document.getElementById('enableCompass');
+    calibrateBtn = document.getElementById('calibrateBtn');
+    resetCalibBtn = document.getElementById('resetCalibBtn');
+    debugEl = document.getElementById('debug');
+    northArrow = document.querySelector('.north-arrow');
+    debugToggleBtn = document.getElementById('debugToggle');
 
-  // geolocation watch
-  if ('geolocation' in navigator) {
-    navigator.geolocation.watchPosition((position) => {
-      userCoords = { lat: position.coords.latitude, lon: position.coords.longitude };
-      targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
-      const dist = getDistance(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
-      if (distanceEl) distanceEl.textContent = `${Math.round(dist)} m`;
-    }, (err) => {
-      console.error('Erreur GPS:', err);
-      if (distanceEl) distanceEl.textContent = 'GPS erreur';
-    }, { enableHighAccuracy: true });
-  } else {
-    if (distanceEl) distanceEl.textContent = 'Geoloc non dispo';
+    if (enableBtn) enableBtn.addEventListener('click', enableDeviceOrientation);
+    if (calibrateBtn) calibrateBtn.addEventListener('click', () => {
+      if (lastBaseRotation == null) return;
+      calibrationOffset = normalize360(0 - lastBaseRotation);
+      if (debugEl) debugEl.textContent += `\nCalibrated: offset=${calibrationOffset.toFixed(1)}°`;
+    });
+    if (resetCalibBtn) resetCalibBtn.addEventListener('click', () => { calibrationOffset = 0; if (debugEl) debugEl.textContent += '\nCalibration reset'; });
+    if (debugToggleBtn) debugToggleBtn.addEventListener('click', () => {
+      if (!debugEl) return;
+      debugEl.style.display = (debugEl.style.display === 'block') ? 'none' : 'block';
+    });
+
+    // geolocation watch (start after DOM ready for better prompt behavior)
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition((position) => {
+        userCoords = { lat: position.coords.latitude, lon: position.coords.longitude };
+        targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
+        const dist = getDistance(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
+        if (distanceEl) distanceEl.textContent = `${Math.round(dist)} m`;
+      }, (err) => {
+        console.error('Erreur GPS:', err);
+        if (distanceEl) distanceEl.textContent = 'GPS erreur';
+      }, { enableHighAccuracy: true });
+    } else {
+      if (distanceEl) distanceEl.textContent = 'Geoloc non dispo';
+    }
+
+    // mouse fallback
+    setTimeout(() => { if (!usingSensors) { document.addEventListener('mousemove', onMouseMove); updateHeadingDisplay('--'); } }, 1000);
   }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 
   // calibration
   if (calibrateBtn) {
