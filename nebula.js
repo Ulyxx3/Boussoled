@@ -69,7 +69,7 @@
           // arrow graphic points down at rotation=0 (CSS coordinate system)
           // Invert X axis to fix direction
           const tipX = centerX - Math.sin(rot) * radius;
-          const tipY = centerY + Math.cos(rot) * radius;
+          const tipY = centerY - Math.cos(rot) * radius; // ← MOINS ici !
 
           // convert to canvas-local coords
           this.mouse.x = tipX - canvasRect.left;

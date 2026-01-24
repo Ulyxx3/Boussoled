@@ -1,2 +1,1 @@
-Site de Boussole GPS :
-Indique en fonction des capteurs du smartphone, de sa position gps et de la position gps de la cible la direction dans laquelle aller pour aller vers la cible.
+Indicates, based on the smartphone's sensors, its GPS position and the target's GPS position, the direction to go towards the target.

@@ -1,11 +1,13 @@
 (function(){
   'use strict';
 
-  // DOM nodes will be queried on init to avoid timing issues on mobile
   let arrow, compass, headingEl, distanceEl, enableBtn, debugEl;
 
-  // target coords (example)
-  const targetCoords = { lat: 42.851556, lon: 3.034500 };
+  // coodonées ciblé
+  const targetCoords = { 
+  lat: 49.4978605,  // 49°29'51.61236" N
+  lon: 0.1327079    // 0°7'56.77932" E
+};
 
   let currentAngle = 0;
   let usingSensors = false;
@@ -14,7 +16,6 @@
   let userCoords = null;
   let targetBearing = 0;
 
-  // Expose currentAngle globally so nebula.js can read it
   window.compassAngle = 0;
 
   // utils
@@ -33,7 +34,7 @@
     else if (angleDiff < -180) angleDiff += 360;
     currentAngle += angleDiff;
     if (arrow) arrow.style.transform = `translateX(-50%) rotate(${currentAngle}deg)`;
-    // Keep global angle in sync for nebula.js to read
+
     window.compassAngle = currentAngle;
   }
   function updateHeadingDisplay(h) {
@@ -85,17 +86,16 @@
     return heading;
   }
 
-  // parse rotation angle (radians) from computed transform string
   function parseRotationFromTransform(transformStr) {
     if (!transformStr || transformStr === 'none') return 0;
-    // 2D matrix: matrix(a, b, c, d, tx, ty)
+
     const m2 = transformStr.match(/matrix\(([^)]+)\)/);
     if (m2) {
       const vals = m2[1].split(',').map(s => parseFloat(s));
       const a = vals[0], b = vals[1];
       return Math.atan2(b, a);
     }
-    // 3D matrix: matrix3d(...16 values...)
+
     const m3 = transformStr.match(/matrix3d\(([^)]+)\)/);
     if (m3) {
       const vals = m3[1].split(',').map(s => parseFloat(s));
@@ -127,7 +127,7 @@
     if (userCoords) {
       targetBearing = getBearing(userCoords.lat, userCoords.lon, targetCoords.lat, targetCoords.lon);
       const relative = normalize360(targetBearing - deviceHeading);
-      const baseRotation = normalize360(relative + 180);
+      const baseRotation = normalize360(relative); // ← plus de +180
       const smoothed = smoothAngle(currentAngle % 360, baseRotation, 0.12);
       rotateTo(smoothed);
       updateHeadingDisplay(targetBearing);
@@ -166,7 +166,6 @@
     } else onFailAttach('Capteur non disponible');
   }
 
-  // Initialize after DOM ready to ensure elements exist (mobile reliability)
   function init() {
     arrow = document.querySelector('.arrow');
     compass = document.querySelector('.compass');
@@ -177,7 +176,6 @@
 
     if (enableBtn) enableBtn.addEventListener('click', enableDeviceOrientation);
 
-    // geolocation watch (start after DOM ready for better prompt behavior)
     if ('geolocation' in navigator) {
       navigator.geolocation.watchPosition((position) => {
         userCoords = { lat: position.coords.latitude, lon: position.coords.longitude };
@@ -191,14 +189,12 @@
       if (distanceEl) distanceEl.textContent = 'No geolocation';
     }
 
-    // mouse fallback
-    setTimeout(() => { if (!usingSensors) { document.addEventListener('mousemove', onMouseMove); updateHeadingDisplay('0°'); } }, 1000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  // mouse fallback (desktop testing only)
+  // teste souris
   function onMouseMove(e) {
     const compassRect = compass.getBoundingClientRect();
     const compassX = compassRect.left + compassRect.width/2;

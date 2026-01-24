@@ -1,35 +1,34 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Boussole</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Nebula styles moved to style.css -->
-</head>
-<body>
-   
-    <h1>Boussole</h1>
-    <div id="distance">-- m</div>
-    <canvas id="nebula-canvas"></canvas>
-    <div class="nebula-vignette"></div>
-    <div class="nebula-info">Ulyxx3</div>
-    <div class="compass">
-        <div class="arrow"></div>
-        <div class="compass-circle"></div>
-    </div>
-    <div class="info">
-        <button id="enableCompass">Activer la boussole</button>
-        <div id="heading">--</div>
-        <pre id="debug" style="display:none; font-size: 10px; max-width: 300px;"></pre>
-    </div>
-        <script>
-        // Load dual.js for GPS-only compass
-        const script = document.createElement('script');
-        script.src = 'dual.js';
-        script.defer = true;
-        document.body.appendChild(script);
-        </script>
-        <script src="nebula.js" defer></script>
-</body>
-</html>
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Boussole</title>
+        <link rel="stylesheet" href="style.css">
+        <!-- Nebula styles moved to style.css -->
+    </head>
+    <body>
+    
+        <div id="distance">-- m</div>
+        <canvas id="nebula-canvas"></canvas>
+        <div class="nebula-vignette"></div>
+        <div class="nebula-info">Ulyxx3</div>
+        <div class="compass">
+            <div class="arrow"></div>
+            <div class="compass-circle"></div>
+        </div>
+        <div class="info">
+            <button id="enableCompass">Activer la boussole</button>
+            <div id="heading">--</div>
+            <pre id="debug" style="display:none; font-size: 10px; max-width: 300px;"></pre>
+        </div>
+            <script>
+            // Load dual.js for GPS-only compass
+            const script = document.createElement('script');
+            script.src = 'dual.js';
+            script.defer = true;
+            document.body.appendChild(script);
+            </script>
+            <script src="nebula.js" defer></script>
+    </body>
+    </html>
