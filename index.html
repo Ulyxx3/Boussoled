@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
     
     <!-- Feuille de style principale -->
-    <link rel="stylesheet" href="style.css?v=7">
+    <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
@@ -21,16 +21,16 @@
     <!-- Vignette radiale sombre pour donner une impression de profondeur spatiale -->
     <div class="nebula-vignette" aria-hidden="true"></div>
 
-    <!-- Signature en bas à gauche : "ETHER" au-dessus de "ULYXX3" -->
-    <div class="nebula-info" aria-label="Signature">
-        <div class="info-title">ETHER</div>
-        <div class="info-author">ULYXX3</div>
+    <!-- Signature en bas à gauche cliquable avec liens GitHub -->
+    <div class="nebula-info" aria-label="Crédits et liens GitHub">
+        <a href="https://github.com/lilouhldmnn" target="_blank" rel="noopener noreferrer" class="info-title" title="Profil GitHub de lilouhldmnn">ETHER</a>
+        <a href="https://github.com/Ulyxx3" target="_blank" rel="noopener noreferrer" class="info-author" title="Profil GitHub de Ulyxx3">ULYXX3</a>
     </div>
 
     <!-- Cercle de la boussole fixé au centre exact de l'écran -->
     <div class="compass" id="compassContainer" role="region" aria-label="Boussole d'orientation">
         
-        <!-- Cadran STRICTEMENT STATIQUE avec repères fixes N, E, S, W -->
+        <!-- Cadran STRICTEMENT FIXE avec les 4 points cardinaux (N, E, S, W) -->
         <div class="compass-dial static-dial" id="compassDial" aria-hidden="true">
             <!-- Repère Nord (0° / Haut) -->
             <div class="cardinal cardinal-north">
@@ -66,11 +66,11 @@
                 <span id="distance-val">--</span><span class="unit">m</span>
             </div>
             
-            <!-- Bouton pour basculer le mode (Desktop : Souris <-> Cible / Mobile : Veille <-> Cible) -->
+            <!-- Bouton de bascule de mode -->
             <button id="enableCompass" class="btn-activate">Pointer vers la cible</button>
             
             <!-- Statut discret -->
-            <div id="gps-status" class="gps-status">Mode Souris</div>
+            <div id="gps-status" class="gps-status">Mode Veille</div>
         </div>
 
         <!-- Flèche géométrique invisible servant d'axe de repère -->
@@ -93,12 +93,9 @@
         </div>
     </div>
 
-    <!-- Console de débogage masquée -->
-    <pre id="debug" style="display:none;"></pre>
-
     <!-- Scripts de l'application -->
-    <script src="dual.js?v=7"></script>
-    <script src="nebula.js?v=7"></script>
+    <script src="dual.js?v=8"></script>
+    <script src="nebula.js?v=8"></script>
 
 </body>
 </html>

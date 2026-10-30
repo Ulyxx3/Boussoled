@@ -63,7 +63,7 @@ canvas#nebula-canvas {
 }
 
 /* --------------------------------------------------------------------------
-   Signature en bas à gauche : "ETHER" au-dessus de "ULYXX3"
+   Signature en bas à gauche avec liens cliquables (ETHER & ULYXX3)
    -------------------------------------------------------------------------- */
 .nebula-info {
     position: fixed;
@@ -72,27 +72,45 @@ canvas#nebula-canvas {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    pointer-events: none;
-    z-index: 20;
+    pointer-events: auto; /* Active les clics sur les liens */
+    z-index: 30;
     font-family: var(--font-family);
 }
 
 .info-title {
+    display: inline-block;
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 5px;
     text-transform: uppercase;
     color: var(--theme-color);
     text-shadow: 0 0 10px var(--theme-color-glow);
-    transition: color 0.15s ease, text-shadow 0.15s ease;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.15s ease, text-shadow 0.15s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.info-title:hover {
+    opacity: 0.85;
+    transform: translateX(2px);
 }
 
 .info-author {
+    display: inline-block;
     font-size: 10px;
     font-weight: 400;
     letter-spacing: 2.5px;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(255, 255, 255, 0.4);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.info-author:hover {
+    color: #ffffff;
+    opacity: 1;
+    transform: translateX(2px);
 }
 
 /* --------------------------------------------------------------------------
@@ -110,7 +128,7 @@ canvas#nebula-canvas {
     align-items: center;
     justify-content: center;
     z-index: 10;
-    cursor: crosshair; /* Invite à interagir pour repositionner la simulation */
+    cursor: default;
 }
 
 /* Anneau circulaire statique avec lueur dynamique */
@@ -137,7 +155,7 @@ canvas#nebula-canvas {
 }
 
 /* --------------------------------------------------------------------------
-   Cadran STATIQUE avec les 4 points cardinaux (N, E, S, W)
+   Cadran STRICTEMENT STATIQUE avec les 4 points cardinaux (N, E, S, W)
    Ce cadran NE TOURNE JAMAIS pour servir de repère fixe absolu.
    -------------------------------------------------------------------------- */
 .compass-dial.static-dial {
@@ -294,7 +312,7 @@ canvas#nebula-canvas {
     color: var(--theme-color-bright);
 }
 
-/* Bouton d'activation / simulation de la boussole */
+/* Bouton de bascule de mode */
 .btn-activate {
     display: inline-block;
     background: rgba(255, 255, 255, 0.05);
@@ -324,16 +342,6 @@ canvas#nebula-canvas {
     border-color: var(--theme-color);
     background: hsla(var(--theme-hue), 100%, 60%, 0.15);
     box-shadow: 0 0 12px var(--theme-color-glow);
-}
-
-.btn-activate.hidden {
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;
-    height: 0;
-    padding: 0;
-    margin: 0;
-    overflow: hidden;
 }
 
 /* Statut du mode discret */

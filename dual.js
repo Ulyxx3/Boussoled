@@ -1,27 +1,24 @@
 /**
  * ==============================================================================
- * DUAL.JS - GESTION DES MODES DESKTOP / MOBILE & CIBLE GPS
+ * DUAL.JS - LOGIQUE ÉPURÉE & ROBUSTE SANS BUGS
  * ==============================================================================
  * 
- * Ce script pilote les deux modes de fonctionnement demandés :
+ * Fonctionnement clair et sans capteurs gyroscopiques complexes :
  * 
- * 1. SUR DESKTOP (Ordinateur) :
- *    - Mode 1 ('mouse')  : La nébuleuse suit directement le curseur de la souris.
- *    - Mode 2 ('target') : La nébuleuse pointe précisément vers la cible
- *                          en fonction de notre position et de la cible,
- *                          sur un cadran 100% STATIQUE (N=Haut, E=Droite, S=Bas, W=Gauche).
- *    - Le bouton bascule entre ces deux modes : "Pointer vers la cible" <-> "Suivre la souris".
+ * 1. CADRAN 100% STATIQUE :
+ *    - Le cadran ne bouge jamais : N (0°/Haut), E (90°/Droite), S (180°/Bas), W (270°/Gauche).
+ *    - La nébuleuse sert d'aiguille directionnelle.
  * 
- * 2. SUR MOBILE (Smartphone / Tablette) :
- *    - Mode 1 ('standby'): La nébuleuse est en veille (sphère 3D au repos qui ne pointe rien).
- *    - Mode 2 ('target') : La nébuleuse pointe vers la cible sur le cadran statique
- *                          en fonction de la position GPS et de l'orientation.
+ * 2. SUR MOBILE :
+ *    - Avant activation : Mode Standby (sphère 3D au repos qui ne pointe rien).
+ *    - Après activation : La nébuleuse pointe directement vers la cible en fonction
+ *      de notre position et de la position cible, avec la distance en mètres.
  *    - Le bouton bascule entre ces deux modes : "Activer la boussole" <-> "Mettre en veille".
  * 
- * 3. CADRAN STATIQUE :
- *    - Le cadran ne tourne pas : le Nord (N) est toujours en haut (0°), l'Est (E) à 90°,
- *      le Sud (S) à 180°, l'Ouest (W) à 270°.
- *    - La nébuleuse sert d'aiguille directionnelle vers la coordonnée cible.
+ * 3. SUR DESKTOP :
+ *    - Avant activation : La nébuleuse suit librement le curseur de la souris.
+ *    - Après activation : La nébuleuse pointe directement vers la cible sur le cadran fixe.
+ *    - Le bouton bascule entre ces deux modes : "Pointer vers la cible" <-> "Suivre la souris".
  * ==============================================================================
  */
 
@@ -29,7 +26,7 @@
     'use strict';
 
     // --------------------------------------------------------------------------
-    // 1. COORDONNÉES GÉOGRAPHIQUES (NOTRE POSITION & CIBLE)
+    // 1. POSITION CIBLE & NOTRE POSITION
     // --------------------------------------------------------------------------
 
     /**
@@ -42,7 +39,7 @@
 
     /**
      * Position de départ par défaut (Paris) utilisée immédiatement
-     * en attendant la confirmation du GPS réel du navigateur/téléphone.
+     * en attendant le retour éventuel du GPS du navigateur.
      */
     let userCoords = {
         lat: 48.8566,
@@ -61,22 +58,22 @@
     let arrowEl = null;
 
     // État actif
-    // Desktop : 'mouse' ou 'target'
     // Mobile  : 'standby' ou 'target'
+    // Desktop : 'mouse' ou 'target'
     let currentAppMode = isMobileDevice ? 'standby' : 'mouse';
 
-    // Variable partagée globalement pour nebula.js
+    // Variable d'angle globale lue par nebula.js
     window.compassAngle = 0;
 
     // --------------------------------------------------------------------------
-    // 2. CALCULS GÉODÉSIQUES : DISTANCE (HAVERSINE) ET CAP (AZIMUT)
+    // 2. CALCULS GÉODÉSIQUES : DISTANCE & CAP (AZIMUT)
     // --------------------------------------------------------------------------
 
     /**
-     * Calcule la distance orthodromique entre deux points GPS en mètres.
+     * Calcule la distance orthodromique entre deux points GPS en mètres (Haversine).
      */
     function getDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371e3; // Rayon moyen de la Terre en mètres
+        const R = 6371e3; // Rayon moyen de la Terre
         const phi1 = lat1 * Math.PI / 180;
         const phi2 = lat2 * Math.PI / 180;
         const deltaPhi = (lat2 - lat1) * Math.PI / 180;
@@ -91,8 +88,8 @@
     }
 
     /**
-     * Calcule le gisement (azimut initial / bearing) vers la cible en degrés [0, 360[.
-     * 0° = Nord (Haut), 90° = Est (Droite), 180° = Sud (Bas), 270° = Ouest (Gauche).
+     * Calcule le gisement (azimut) vers la cible sur le cadran fixe [0, 360[.
+     * 0° = N (Haut), 90° = E (Droite), 180° = S (Bas), 270° = W (Gauche).
      */
     function getBearing(lat1, lon1, lat2, lon2) {
         const phi1 = lat1 * Math.PI / 180;
@@ -108,7 +105,7 @@
     }
 
     /**
-     * Met à jour l'affichage des mètres séparant notre position de la cible.
+     * Met à jour l'affichage de la distance dans le DOM.
      */
     function updateDistanceDisplay(meters) {
         if (!distanceValEl) return;
@@ -135,10 +132,7 @@
             TARGET_COORDS.lat, TARGET_COORDS.lon
         );
 
-        // Affiche le nombre de mètres
         updateDistanceDisplay(distance);
-
-        // Oriente la nébuleuse vers l'azimut calculé
         window.compassAngle = bearing;
 
         if (arrowEl) {
@@ -151,7 +145,7 @@
     // --------------------------------------------------------------------------
 
     /**
-     * Met à jour les libellés et l'état visuel du bouton selon le mode actif.
+     * Met à jour le texte du bouton et le statut discret.
      */
     function updateModeUI() {
         if (!enableBtn) return;
@@ -180,11 +174,11 @@
     }
 
     /**
-     * Bascule le mode de l'application au clic sur le bouton.
+     * Bascule le mode au clic sur le bouton.
      */
     function toggleMode() {
         if (isMobileDevice) {
-            // Sur Mobile : bascule entre 'standby' et 'target'
+            // Sur Mobile : bascule Standby <-> Cible
             if (currentAppMode === 'standby') {
                 currentAppMode = 'target';
                 if (window.nebulaSphere) window.nebulaSphere.setMode('compass');
@@ -194,7 +188,7 @@
                 if (window.nebulaSphere) window.nebulaSphere.setMode('idle');
             }
         } else {
-            // Sur Desktop : bascule entre 'mouse' et 'target'
+            // Sur Desktop : bascule Souris <-> Cible
             if (currentAppMode === 'mouse') {
                 currentAppMode = 'target';
                 if (window.nebulaSphere) window.nebulaSphere.setMode('compass');
@@ -245,7 +239,7 @@
     }
 
     // --------------------------------------------------------------------------
-    // 5. INITIALISATION DU MODULE
+    // 5. INITIALISATION
     // --------------------------------------------------------------------------
 
     function init() {
@@ -254,16 +248,16 @@
         gpsStatusEl = document.getElementById('gps-status');
         arrowEl = document.querySelector('.arrow');
 
-        // Initialisation de la couleur
+        // Initialisation de la teinte
         setupColorSlider();
 
-        // Calcul initial de la distance et du cap vers la cible
+        // Calcul initial de la distance et du cap
         applyTargetNavigation();
 
-        // Configuration du mode initial dans la nébuleuse
+        // Configuration du mode initial de la nébuleuse
         if (window.nebulaSphere) {
             if (isMobileDevice) {
-                window.nebulaSphere.setMode('idle'); // Standby sur mobile
+                window.nebulaSphere.setMode('idle'); // Standby au repos sur mobile
             } else {
                 window.nebulaSphere.setMode('mouse'); // Suivi souris sur PC
             }
@@ -276,7 +270,7 @@
         updateModeUI();
 
         // ----------------------------------------------------------------------
-        // Géolocalisation en continu (actualise notre position réelle)
+        // Géolocalisation GPS en direct (si accordée)
         // ----------------------------------------------------------------------
         if ('geolocation' in navigator) {
             navigator.geolocation.watchPosition(
@@ -286,11 +280,13 @@
                         lon: position.coords.longitude
                     };
 
-                    // Recalcule la distance et le cap avec la position réelle
-                    applyTargetNavigation();
+                    // Si le mode cible est actif, met à jour la navigation en direct
+                    if (currentAppMode === 'target') {
+                        applyTargetNavigation();
+                    }
                 },
                 (err) => {
-                    console.log('GPS passif, utilisation position par défaut:', err.message);
+                    // Repli silencieux sur la position par défaut
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
             );
