@@ -1,21 +1,27 @@
 /**
  * ==============================================================================
- * DUAL.JS - GESTION DU GPS, DE L'ORIENTATION, DU CADRAN N/S ET DES MODES
+ * DUAL.JS - GESTION DES MODES DESKTOP / MOBILE & CIBLE GPS
  * ==============================================================================
- * Ce script assure les fonctionnalités suivantes :
- * 1. Détection de l'appareil : Mobile vs Ordinateur (Desktop).
- * 2. Comportement sur PC :
- *    - AVANT activation : mode souris libre, la nébuleuse suit le curseur.
- *    - APRÈS activation : la nébuleuse et le cadran s'orientent vers la cible.
- * 3. Comportement sur Mobile :
- *    - AVANT activation : la nébuleuse est au repos ('idle', sphère 3D pure).
- *    - APRÈS activation : capteurs gyroscopiques + GPS, la nébuleuse pointe
- *      vers l'objectif et le cadran (Nord/Sud) s'aligne avec le Nord magnétique.
- * 4. Cadran rotatif minimaliste :
- *    - 'N' (Nord) pointe vers le Nord réel.
- *    - 'S' (Sud) pointe vers le Sud.
- *    - La nébuleuse pointe vers l'objectif à atteindre.
- * 5. Calculs géodésiques (Haversine & Azimut) et synchronisation du slider de couleur.
+ * 
+ * Ce script pilote les deux modes de fonctionnement demandés :
+ * 
+ * 1. SUR DESKTOP (Ordinateur) :
+ *    - Mode 1 ('mouse')  : La nébuleuse suit directement le curseur de la souris.
+ *    - Mode 2 ('target') : La nébuleuse pointe précisément vers la cible
+ *                          en fonction de notre position et de la cible,
+ *                          sur un cadran 100% STATIQUE (N=Haut, E=Droite, S=Bas, W=Gauche).
+ *    - Le bouton bascule entre ces deux modes : "Pointer vers la cible" <-> "Suivre la souris".
+ * 
+ * 2. SUR MOBILE (Smartphone / Tablette) :
+ *    - Mode 1 ('standby'): La nébuleuse est en veille (sphère 3D au repos qui ne pointe rien).
+ *    - Mode 2 ('target') : La nébuleuse pointe vers la cible sur le cadran statique
+ *                          en fonction de la position GPS et de l'orientation.
+ *    - Le bouton bascule entre ces deux modes : "Activer la boussole" <-> "Mettre en veille".
+ * 
+ * 3. CADRAN STATIQUE :
+ *    - Le cadran ne tourne pas : le Nord (N) est toujours en haut (0°), l'Est (E) à 90°,
+ *      le Sud (S) à 180°, l'Ouest (W) à 270°.
+ *    - La nébuleuse sert d'aiguille directionnelle vers la coordonnée cible.
  * ==============================================================================
  */
 
@@ -23,112 +29,54 @@
     'use strict';
 
     // --------------------------------------------------------------------------
-    // 1. DÉFINITION DE LA CIBLE & VARIABLES GLOBALES
+    // 1. COORDONNÉES GÉOGRAPHIQUES (NOTRE POSITION & CIBLE)
     // --------------------------------------------------------------------------
 
     /**
-     * Coordonnées GPS de l'objectif à atteindre (ex: Le Havre, France).
+     * Coordonnées GPS de la cible finale (Le Havre, France).
      */
     const TARGET_COORDS = {
-        lat: 49.4978605, // Latitude : 49°29'51.61" N
-        lon: 0.1327079   // Longitude : 0°07'56.78" E
+        lat: 49.4978605, // 49°29'51.61" N
+        lon: 0.1327079   // 0°07'56.78" E
     };
 
-    // Détection de l'appareil (Mobile / Tablette vs Ordinateur de bureau)
+    /**
+     * Position de départ par défaut (Paris) utilisée immédiatement
+     * en attendant la confirmation du GPS réel du navigateur/téléphone.
+     */
+    let userCoords = {
+        lat: 48.8566,
+        lon: 2.3522
+    };
+
+    // Détection de l'appareil (Mobile vs Desktop)
     const isMobileDevice = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                           ('ontouchstart' in window && navigator.maxTouchPoints > 0 && window.innerWidth < 1024);
 
     // Éléments du DOM
-    let compassContainer = null;
-    let compassDial = null;
     let distanceValEl = null;
     let enableBtn = null;
     let gpsStatusEl = null;
     let colorSlider = null;
     let arrowEl = null;
-    let debugEl = null;
 
-    // État de l'application
-    let isCompassActive = false;      // Si la boussole a été activée
-    let userCoords = null;           // Position GPS actuelle { lat, lon }
-    let currentAngle = 0;             // Angle courant de la nébuleuse (direction cible)
-    let currentDialAngle = 0;         // Angle courant du cadran Nord / Sud
-    let usingSensors = false;         // Vrai si des données de gyroscope réel sont reçues
+    // État actif
+    // Desktop : 'mouse' ou 'target'
+    // Mobile  : 'standby' ou 'target'
+    let currentAppMode = isMobileDevice ? 'standby' : 'mouse';
 
-    // Variable partagée globalement pour orienter la nébuleuse dans nebula.js
+    // Variable partagée globalement pour nebula.js
     window.compassAngle = 0;
 
     // --------------------------------------------------------------------------
-    // 2. UTILITAIRES MATHÉMATIQUES & LISSAGE ANGULAIRE
-    // --------------------------------------------------------------------------
-
-    /**
-     * Normalise un angle pour qu'il soit toujours dans l'intervalle [0, 360[.
-     * @param {number} angle - Angle en degrés
-     * @returns {number} Angle normalisé
-     */
-    function normalize360(angle) {
-        return ((angle % 360) + 360) % 360;
-    }
-
-    /**
-     * Interpolation douce (lerp) entre deux angles en choisissant le plus court chemin.
-     * @param {number} prev - Angle précédent
-     * @param {number} target - Angle cible
-     * @param {number} factor - Facteur de lissage (entre 0 et 1)
-     * @returns {number} Nouvel angle lissé
-     */
-    function smoothAngle(prev, target, factor) {
-        prev = normalize360(prev);
-        target = normalize360(target);
-        let delta = target - prev;
-        
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-        
-        return prev + delta * factor;
-    }
-
-    /**
-     * Fait pivoter la nébuleuse vers un angle donné.
-     * @param {number} angle - Angle en degrés
-     */
-    function rotateNebulaTo(angle) {
-        let diff = angle - (currentAngle % 360);
-        if (diff > 180) diff -= 360;
-        else if (diff < -180) diff += 360;
-        currentAngle += diff;
-
-        window.compassAngle = currentAngle;
-
-        if (arrowEl) {
-            arrowEl.style.transform = `translate(-50%, -50%) rotate(${currentAngle}deg)`;
-        }
-    }
-
-    /**
-     * Fait pivoter le cadran Nord/Sud pour refléter le cap magnétique.
-     * @param {number} angle - Angle du cadran en degrés
-     */
-    function rotateDialTo(angle) {
-        if (!compassDial) return;
-        let diff = angle - (currentDialAngle % 360);
-        if (diff > 180) diff -= 360;
-        else if (diff < -180) diff += 360;
-        currentDialAngle += diff;
-
-        compassDial.style.transform = `rotate(${currentDialAngle}deg)`;
-    }
-
-    // --------------------------------------------------------------------------
-    // 3. CALCULS GÉODÉSIQUES : FORMULE DE HAVERSINE & AZIMUT
+    // 2. CALCULS GÉODÉSIQUES : DISTANCE (HAVERSINE) ET CAP (AZIMUT)
     // --------------------------------------------------------------------------
 
     /**
      * Calcule la distance orthodromique entre deux points GPS en mètres.
      */
     function getDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371e3; // Rayon terrestre moyen
+        const R = 6371e3; // Rayon moyen de la Terre en mètres
         const phi1 = lat1 * Math.PI / 180;
         const phi2 = lat2 * Math.PI / 180;
         const deltaPhi = (lat2 - lat1) * Math.PI / 180;
@@ -143,7 +91,8 @@
     }
 
     /**
-     * Calcule le gisement (bearing initial) vers la cible en degrés [0, 360[.
+     * Calcule le gisement (azimut initial / bearing) vers la cible en degrés [0, 360[.
+     * 0° = Nord (Haut), 90° = Est (Droite), 180° = Sud (Bas), 270° = Ouest (Gauche).
      */
     function getBearing(lat1, lon1, lat2, lon2) {
         const phi1 = lat1 * Math.PI / 180;
@@ -155,253 +104,112 @@
                   Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
 
         const bearing = Math.atan2(y, x) * 180 / Math.PI;
-        return (bearing + 360) % 360;
+        return ((bearing % 360) + 360) % 360;
     }
 
     /**
-     * Affiche la distance restante de façon épurée.
-     * @param {number|null} meters - Distance en mètres
+     * Met à jour l'affichage des mètres séparant notre position de la cible.
      */
     function updateDistanceDisplay(meters) {
         if (!distanceValEl) return;
-        
         if (meters === null || isNaN(meters)) {
             distanceValEl.textContent = '--';
             return;
         }
-
         const rounded = Math.round(meters);
         distanceValEl.textContent = rounded.toLocaleString('fr-FR');
     }
 
-    // --------------------------------------------------------------------------
-    // 4. COMPENSATION D'INCLINAISON 3D POUR SMARTPHONE
-    // --------------------------------------------------------------------------
-
     /**
-     * Calcule le cap réel par rapport au Nord à partir des capteurs mobiles.
+     * Calcule et applique le cap et la distance vers la cible.
      */
-    function getCompassHeading(alpha, beta, gamma) {
-        const a = alpha * Math.PI / 180;
-        const b = beta * Math.PI / 180;
-        const g = gamma * Math.PI / 180;
+    function applyTargetNavigation() {
+        if (!userCoords) return;
 
-        const ca = Math.cos(a), sa = Math.sin(a);
-        const cb = Math.cos(b), sb = Math.sin(b);
-        const cg = Math.cos(g), sg = Math.sin(g);
+        const distance = getDistance(
+            userCoords.lat, userCoords.lon,
+            TARGET_COORDS.lat, TARGET_COORDS.lon
+        );
+        const bearing = getBearing(
+            userCoords.lat, userCoords.lon,
+            TARGET_COORDS.lat, TARGET_COORDS.lon
+        );
 
-        const m12 = -ca * sg - sa * sb * cg;
-        const m22 = -sa * sg + ca * sb * cg;
+        // Affiche le nombre de mètres
+        updateDistanceDisplay(distance);
 
-        let heading = Math.atan2(m12, m22) * 180 / Math.PI;
-        if (heading < 0) heading += 360;
+        // Oriente la nébuleuse vers l'azimut calculé
+        window.compassAngle = bearing;
 
-        const screenAngle = (window.screen && window.screen.orientation && window.screen.orientation.angle) || window.orientation || 0;
-        return normalize360(heading - screenAngle);
-    }
-
-    /**
-     * Traite les événements gyroscopiques de l'appareil mobile.
-     */
-    function handleOrientationEvent(e) {
-        if (!isCompassActive) return;
-
-        const a = (typeof e.alpha === 'number') ? e.alpha : null;
-        const b = (typeof e.beta === 'number') ? e.beta : null;
-        const g = (typeof e.gamma === 'number') ? e.gamma : null;
-
-        let deviceHeading = null;
-
-        // iOS
-        if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
-            deviceHeading = e.webkitCompassHeading;
-        } 
-        // Android
-        else if (a !== null && b !== null && g !== null) {
-            deviceHeading = getCompassHeading(a, b, g);
-        } else if (a !== null) {
-            deviceHeading = normalize360(360 - a);
-        }
-
-        if (deviceHeading === null) return;
-
-        usingSensors = true;
-
-        // 1. Le cadran Nord/Sud tourne pour que 'N' pointe toujours vers le Nord physique
-        // L'angle du cadran est l'inverse de la rotation du téléphone (-deviceHeading)
-        const smoothedDial = smoothAngle(currentDialAngle % 360, 360 - deviceHeading, 0.15);
-        rotateDialTo(smoothedDial);
-
-        // 2. La nébuleuse pointe vers la cible par rapport à l'orientation du téléphone
-        if (userCoords) {
-            const targetBearing = getBearing(userCoords.lat, userCoords.lon, TARGET_COORDS.lat, TARGET_COORDS.lon);
-            const relativeToTarget = normalize360(targetBearing - deviceHeading);
-            const smoothedNebula = smoothAngle(currentAngle % 360, relativeToTarget, 0.15);
-            rotateNebulaTo(smoothedNebula);
-        } else {
-            // Si pas encore de position GPS, la nébuleuse s'aligne avec le Nord
-            const relativeToNorth = normalize360(360 - deviceHeading);
-            const smoothedNebula = smoothAngle(currentAngle % 360, relativeToNorth, 0.15);
-            rotateNebulaTo(smoothedNebula);
+        if (arrowEl) {
+            arrowEl.style.transform = `translate(-50%, -50%) rotate(${bearing}deg)`;
         }
     }
 
     // --------------------------------------------------------------------------
-    // 5. GESTION DE L'ACTIVATION DE LA BOUSSOLE (DESKTOP VS MOBILE)
+    // 3. GESTION DES MODES & DU BOUTON
     // --------------------------------------------------------------------------
 
     /**
-     * Active le mode boussole.
+     * Met à jour les libellés et l'état visuel du bouton selon le mode actif.
      */
-    function activateCompass() {
-        isCompassActive = true;
-
-        // Met la nébuleuse en mode 'compass'
-        if (window.nebulaSphere && typeof window.nebulaSphere.setMode === 'function') {
-            window.nebulaSphere.setMode('compass');
-        }
+    function updateModeUI() {
+        if (!enableBtn) return;
 
         if (isMobileDevice) {
-            // Sur mobile : activation des capteurs réels
-            if (enableBtn) {
-                enableBtn.disabled = true;
-                enableBtn.textContent = 'Connexion...';
-            }
-
-            const onSuccess = () => {
-                if (enableBtn) {
-                    enableBtn.classList.add('hidden'); // Disparaît pour le minimalisme
-                }
-            };
-
-            const onFail = (msg) => {
-                if (enableBtn) {
-                    enableBtn.disabled = false;
-                    enableBtn.textContent = msg || 'Activer la boussole';
-                }
-            };
-
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(state => {
-                        if (state === 'granted') {
-                            window.addEventListener('deviceorientation', handleOrientationEvent, true);
-                            window.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
-                            onSuccess();
-                        } else {
-                            onFail('Permission refusée');
-                        }
-                    })
-                    .catch(err => {
-                        console.warn('Erreur permission:', err);
-                        onFail('Activation impossible');
-                    });
-            } else if (typeof DeviceOrientationEvent !== 'undefined') {
-                window.addEventListener('deviceorientation', handleOrientationEvent, true);
-                window.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
-                setTimeout(() => {
-                    if (usingSensors) onSuccess();
-                    else onFail('Capteurs inactifs');
-                }, 1200);
-                onSuccess();
+            if (currentAppMode === 'standby') {
+                enableBtn.textContent = 'Activer la boussole';
+                enableBtn.classList.remove('active-mode');
+                if (gpsStatusEl) gpsStatusEl.textContent = 'Mode Veille (au repos)';
             } else {
-                onFail('Capteur non supporté');
-            }
-        } 
-        else {
-            // Sur PC / Desktop :
-            // Bascule en mode boussole verrouillée vers la cible
-            if (enableBtn) {
-                enableBtn.textContent = 'Mode Libre (Souris)';
+                enableBtn.textContent = 'Mettre en veille';
                 enableBtn.classList.add('active-mode');
+                if (gpsStatusEl) gpsStatusEl.textContent = 'Pointé vers la cible';
             }
-
-            // Calcule la direction cible (si GPS disponible ou défaut vers cible)
-            let bearing = 0;
-            if (userCoords) {
-                bearing = getBearing(userCoords.lat, userCoords.lon, TARGET_COORDS.lat, TARGET_COORDS.lon);
+        } else {
+            if (currentAppMode === 'mouse') {
+                enableBtn.textContent = 'Pointer vers la cible';
+                enableBtn.classList.remove('active-mode');
+                if (gpsStatusEl) gpsStatusEl.textContent = 'Mode Souris (libre)';
+            } else {
+                enableBtn.textContent = 'Suivre la souris';
+                enableBtn.classList.add('active-mode');
+                if (gpsStatusEl) gpsStatusEl.textContent = 'Pointé vers la cible (fixe)';
             }
-            rotateNebulaTo(bearing);
-            rotateDialTo(0); // Le Nord est au sommet sur PC
         }
     }
 
     /**
-     * Désactive le mode boussole sur PC pour revenir au mode souris libre.
+     * Bascule le mode de l'application au clic sur le bouton.
      */
-    function deactivateCompassOnPC() {
-        isCompassActive = false;
-        
-        if (window.nebulaSphere && typeof window.nebulaSphere.setMode === 'function') {
-            window.nebulaSphere.setMode('mouse');
-        }
-
-        if (enableBtn) {
-            enableBtn.textContent = 'Activer la boussole';
-            enableBtn.classList.remove('active-mode');
-        }
-
-        // Réinitialise l'orientation du cadran
-        rotateDialTo(0);
-    }
-
-    /**
-     * Gestion du bouton selon l'état et l'appareil.
-     */
-    function handleEnableButtonClick() {
-        if (!isCompassActive) {
-            activateCompass();
-        } else if (!isMobileDevice) {
-            // Sur PC, permet de re-basculer vers le mode souris libre
-            deactivateCompassOnPC();
-        }
-    }
-
-    // --------------------------------------------------------------------------
-    // 6. GESTION DE LA SOURIS SUR PC (AVANT & APRÈS ACTIVATION)
-    // --------------------------------------------------------------------------
-
-    function setupDesktopInteraction() {
-        if (isMobileDevice) return;
-
-        window.addEventListener('mousemove', (e) => {
-            // Si la boussole N'EST PAS encore activée sur PC :
-            // La nébuleuse suit librement le curseur (géré par nebula.js via setMousePosition)
-            if (!isCompassActive) {
-                if (window.nebulaSphere && typeof window.nebulaSphere.setMousePosition === 'function') {
-                    window.nebulaSphere.setMousePosition(e.clientX, e.clientY, true);
-                }
-            } 
-            // Si la boussole EST activée sur PC :
-            // On permet à l'utilisateur de simuler l'orientation de son regard autour du centre
-            else {
-                if (!compassContainer) return;
-                const rect = compassContainer.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-
-                const dx = e.clientX - centerX;
-                const dy = e.clientY - centerY;
-                const cursorAngle = (Math.atan2(dy, dx) * 180 / Math.PI) + 90;
-
-                // Fait pivoter le cadran pour simuler la rotation de l'utilisateur
-                const smoothedDial = smoothAngle(currentDialAngle % 360, -cursorAngle, 0.12);
-                rotateDialTo(smoothedDial);
-
-                // La nébuleuse pointe vers la cible relative
-                let targetBearing = 0;
-                if (userCoords) {
-                    targetBearing = getBearing(userCoords.lat, userCoords.lon, TARGET_COORDS.lat, TARGET_COORDS.lon);
-                }
-                const relativeAngle = normalize360(targetBearing - cursorAngle);
-                const smoothedNebula = smoothAngle(currentAngle % 360, relativeAngle, 0.15);
-                rotateNebulaTo(smoothedNebula);
+    function toggleMode() {
+        if (isMobileDevice) {
+            // Sur Mobile : bascule entre 'standby' et 'target'
+            if (currentAppMode === 'standby') {
+                currentAppMode = 'target';
+                if (window.nebulaSphere) window.nebulaSphere.setMode('compass');
+                applyTargetNavigation();
+            } else {
+                currentAppMode = 'standby';
+                if (window.nebulaSphere) window.nebulaSphere.setMode('idle');
             }
-        });
+        } else {
+            // Sur Desktop : bascule entre 'mouse' et 'target'
+            if (currentAppMode === 'mouse') {
+                currentAppMode = 'target';
+                if (window.nebulaSphere) window.nebulaSphere.setMode('compass');
+                applyTargetNavigation();
+            } else {
+                currentAppMode = 'mouse';
+                if (window.nebulaSphere) window.nebulaSphere.setMode('mouse');
+            }
+        }
+
+        updateModeUI();
     }
 
     // --------------------------------------------------------------------------
-    // 7. GESTION DU SLIDER DE COULEUR
+    // 4. GESTION DU SLIDER DE COULEUR
     // --------------------------------------------------------------------------
 
     function applyThemeHue(hue) {
@@ -437,42 +245,40 @@
     }
 
     // --------------------------------------------------------------------------
-    // 8. INITIALISATION DU MODULE
+    // 5. INITIALISATION DU MODULE
     // --------------------------------------------------------------------------
 
     function init() {
-        compassContainer = document.getElementById('compassContainer');
-        compassDial = document.getElementById('compassDial');
         distanceValEl = document.getElementById('distance-val');
         enableBtn = document.getElementById('enableCompass');
         gpsStatusEl = document.getElementById('gps-status');
         arrowEl = document.querySelector('.arrow');
-        debugEl = document.getElementById('debug');
 
-        // Initialisation de la teinte
+        // Initialisation de la couleur
         setupColorSlider();
 
-        // Initialisation du mode selon l'appareil :
-        // - Sur PC : démarre en mode 'mouse' (la nébuleuse suit la souris)
-        // - Sur Mobile : démarre en mode 'idle' (la nébuleuse ne pointe rien)
-        if (window.nebulaSphere && typeof window.nebulaSphere.setMode === 'function') {
-            window.nebulaSphere.setMode(isMobileDevice ? 'idle' : 'mouse');
+        // Calcul initial de la distance et du cap vers la cible
+        applyTargetNavigation();
+
+        // Configuration du mode initial dans la nébuleuse
+        if (window.nebulaSphere) {
+            if (isMobileDevice) {
+                window.nebulaSphere.setMode('idle'); // Standby sur mobile
+            } else {
+                window.nebulaSphere.setMode('mouse'); // Suivi souris sur PC
+            }
         }
 
-        // Configuration du bouton d'activation
+        // Configuration du bouton de bascule
         if (enableBtn) {
-            enableBtn.addEventListener('click', handleEnableButtonClick);
+            enableBtn.addEventListener('click', toggleMode);
         }
-
-        // Configuration de l'interaction souris sur PC
-        setupDesktopInteraction();
+        updateModeUI();
 
         // ----------------------------------------------------------------------
-        // Surveillance GPS en continu
+        // Géolocalisation en continu (actualise notre position réelle)
         // ----------------------------------------------------------------------
         if ('geolocation' in navigator) {
-            if (gpsStatusEl) gpsStatusEl.textContent = 'Recherche GPS...';
-
             navigator.geolocation.watchPosition(
                 (position) => {
                     userCoords = {
@@ -480,42 +286,14 @@
                         lon: position.coords.longitude
                     };
 
-                    const distance = getDistance(
-                        userCoords.lat, userCoords.lon,
-                        TARGET_COORDS.lat, TARGET_COORDS.lon
-                    );
-
-                    updateDistanceDisplay(distance);
-                    
-                    if (gpsStatusEl) {
-                        gpsStatusEl.textContent = 'Signal GPS verrouillé';
-                        setTimeout(() => {
-                            if (gpsStatusEl) gpsStatusEl.style.opacity = '0';
-                        }, 3500);
-                    }
-
-                    // Si la boussole est déjà active, actualise l'orientation vers la cible
-                    if (isCompassActive) {
-                        const targetBearing = getBearing(userCoords.lat, userCoords.lon, TARGET_COORDS.lat, TARGET_COORDS.lon);
-                        rotateNebulaTo(targetBearing);
-                    }
+                    // Recalcule la distance et le cap avec la position réelle
+                    applyTargetNavigation();
                 },
                 (err) => {
-                    console.warn('Erreur GPS :', err.message);
-                    if (gpsStatusEl) {
-                        gpsStatusEl.textContent = 'GPS inactif';
-                        gpsStatusEl.style.opacity = '0.5';
-                    }
-                    updateDistanceDisplay(null);
+                    console.log('GPS passif, utilisation position par défaut:', err.message);
                 },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 1000
-                }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
             );
-        } else {
-            if (gpsStatusEl) gpsStatusEl.textContent = 'GPS non supporté';
         }
     }
 

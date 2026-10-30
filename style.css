@@ -110,7 +110,7 @@ canvas#nebula-canvas {
     align-items: center;
     justify-content: center;
     z-index: 10;
-    cursor: default;
+    cursor: crosshair; /* Invite à interagir pour repositionner la simulation */
 }
 
 /* Anneau circulaire statique avec lueur dynamique */
@@ -137,38 +137,39 @@ canvas#nebula-canvas {
 }
 
 /* --------------------------------------------------------------------------
-   Cadran rotatif minimaliste avec repères Nord (N) et Sud (S)
+   Cadran STATIQUE avec les 4 points cardinaux (N, E, S, W)
+   Ce cadran NE TOURNE JAMAIS pour servir de repère fixe absolu.
    -------------------------------------------------------------------------- */
-.compass-dial {
+.compass-dial.static-dial {
     position: absolute;
     inset: -14px; /* Déborde légèrement du cercle principal pour bien s'emboîter avec la nébuleuse */
     border-radius: 50%;
     pointer-events: none;
-    transform: rotate(0deg);
-    transition: transform 0.12s cubic-bezier(0.1, 0.9, 0.2, 1);
+    transform: none !important; /* Reste STRICTEMENT STATIQUE */
     z-index: 3;
 }
 
 /* Style de base des repères cardinaux */
 .cardinal {
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 2px;
+    justify-content: center;
     font-family: var(--font-family);
     line-height: 1;
 }
 
-/* Repère Nord (N) : lumineux, au sommet */
+/* 1. NORD (N) : Haut / 0° */
 .cardinal-north {
     top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: column;
+    gap: 2px;
 }
 
 .cardinal-north .cardinal-label {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 1px;
     color: var(--theme-color);
@@ -185,15 +186,42 @@ canvas#nebula-canvas {
     transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Repère Sud (S) : épuré, en bas */
+/* 2. EST (E) : Droite / 90° */
+.cardinal-east {
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    flex-direction: row;
+    gap: 3px;
+}
+
+.cardinal-east .cardinal-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--theme-color-subtle);
+    transition: color 0.15s ease;
+}
+
+.cardinal-east .cardinal-indicator {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--theme-color-subtle);
+    transition: background 0.15s ease;
+}
+
+/* 3. SUD (S) : Bas / 180° */
 .cardinal-south {
     bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: column;
+    gap: 2px;
 }
 
 .cardinal-south .cardinal-label {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 1px;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--theme-color-subtle);
     transition: color 0.15s ease;
 }
@@ -206,25 +234,28 @@ canvas#nebula-canvas {
     transition: background 0.15s ease;
 }
 
-/* Ticks discrets pour les axes Est (90°) et Ouest (270°) */
-.cardinal-tick {
-    position: absolute;
+/* 4. OUEST (W) : Gauche / 270° */
+.cardinal-west {
+    left: 0;
     top: 50%;
-    width: 6px;
-    height: 1px;
+    transform: translateY(-50%);
+    flex-direction: row;
+    gap: 3px;
+}
+
+.cardinal-west .cardinal-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--theme-color-subtle);
+    transition: color 0.15s ease;
+}
+
+.cardinal-west .cardinal-indicator {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
     background: var(--theme-color-subtle);
-    opacity: 0.5;
     transition: background 0.15s ease;
-}
-
-.tick-east {
-    right: 2px;
-    transform: translateY(-50%);
-}
-
-.tick-west {
-    left: 2px;
-    transform: translateY(-50%);
 }
 
 /* --------------------------------------------------------------------------
@@ -263,7 +294,7 @@ canvas#nebula-canvas {
     color: var(--theme-color-bright);
 }
 
-/* Bouton d'activation de la boussole */
+/* Bouton d'activation / simulation de la boussole */
 .btn-activate {
     display: inline-block;
     background: rgba(255, 255, 255, 0.05);
@@ -292,6 +323,7 @@ canvas#nebula-canvas {
 .btn-activate.active-mode {
     border-color: var(--theme-color);
     background: hsla(var(--theme-hue), 100%, 60%, 0.15);
+    box-shadow: 0 0 12px var(--theme-color-glow);
 }
 
 .btn-activate.hidden {
@@ -304,7 +336,7 @@ canvas#nebula-canvas {
     overflow: hidden;
 }
 
-/* Statut GPS discret */
+/* Statut du mode discret */
 .gps-status {
     font-size: 10px;
     letter-spacing: 2px;

@@ -3,13 +3,20 @@
  * NEBULA.JS - MOTEUR DE PARTICULES 3D DE LA NÉBULEUSE EN FORME DE BOUSSOLE
  * ==============================================================================
  * Ce script gère une sphère de particules 3D animée dans un Canvas 2D.
- * Trois modes de fonctionnement dynamiques :
- * 1. 'idle'    : Sphère 3D harmonieuse au repos (sans pointe ni déformation).
- *                Utilisé sur MOBILE avant l'activation de la boussole.
- * 2. 'mouse'   : Attraction dynamique vers le curseur de la souris.
- *                Utilisé sur PC avant l'activation de la boussole.
- * 3. 'compass' : Déformation en pointe orientée selon le cap de la boussole
- *                (window.compassAngle). Utilisé après activation de la boussole.
+ * 
+ * La nébuleuse joue le rôle de l'AIGUILLE VIVANTE de la boussole :
+ * - Le cadran extérieur (N, E, S, W) est STATIQUE :
+ *     * N (Nord)  = 0°   (Haut)
+ *     * E (Est)   = 90°  (Droite)
+ *     * S (Sud)   = 180° (Bas)
+ *     * W (Ouest) = 270° (Gauche)
+ * - La pointe de la nébuleuse est attirée vers l'angle exact de la cible
+ *   (window.compassAngle), sculptant la forme de goutte vers cette direction.
+ * 
+ * Modes :
+ * 1. 'compass' : La nébuleuse pointe précisément vers la cible sur le cadran statique.
+ * 2. 'mouse'   : La nébuleuse suit directement le curseur de la souris (mode libre).
+ * 3. 'idle'    : Sphère 3D harmonieuse au repos (sans déformation).
  * ==============================================================================
  */
 
@@ -61,15 +68,6 @@
                 }
             } catch (e) {}
 
-            // Détection initiale de l'appareil (Mobile vs Desktop)
-            const isMobileDevice = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                                  ('ontouchstart' in window && navigator.maxTouchPoints > 0 && window.innerWidth < 1024);
-
-            // Mode initial :
-            // - Sur Mobile : 'idle' (la nébuleuse ne pointe rien, sphère stellaire au repos)
-            // - Sur PC : 'mouse' (la nébuleuse suit le curseur de la souris)
-            const defaultMode = isMobileDevice ? 'idle' : 'mouse';
-
             // Configuration générale
             this.config = {
                 particleCount: 4200,      // Nombre de particules de poussière stellaire
@@ -79,7 +77,7 @@
                 rotationSpeed: 0.12,      // Vitesse de rotation lente sur elle-même
                 needleOutset: 280,        // Décalage de la pointe pour la forme boussole
                 hue: initialHue,          // Teinte HSL (synchronisée avec le thème)
-                mode: defaultMode,        // 'idle' | 'mouse' | 'compass'
+                mode: 'compass',          // 'compass' par défaut pour pointer immédiatement
                 ...options
             };
 
@@ -294,12 +292,16 @@
 
             if (this.mode === 'compass') {
                 // Mode Boussole active : la nébuleuse pointe dans la direction de la boussole
+                // TRIGONOMÉTRIE DIRECTE SUR CADRAN FIXE :
+                // 0°   = NORD  (Haut)   -> sin(0) = 0   , -cos(0) = -1  (Y < centerY)
+                // 90°  = EST   (Droite) -> sin(90) = 1  , -cos(90) = 0  (X > centerX)
+                // 180° = SUD   (Bas)    -> sin(180) = 0 , -cos(180) = +1 (Y > centerY)
+                // 270° = OUEST (Gauche) -> sin(270) = -1, -cos(270) = 0 (X < centerX)
                 const angleDeg = (typeof window.compassAngle === 'number') ? window.compassAngle : 0;
                 const rotRad = angleDeg * Math.PI / 180;
                 const tipRadius = this.bounds.compassRadius + (this.config.needleOutset * (dpr * 0.7));
 
-                // 0° pointe vers le haut (-cos pour Y, -sin pour X)
-                targetX = centerX - Math.sin(rotRad) * tipRadius;
+                targetX = centerX + Math.sin(rotRad) * tipRadius;
                 targetY = centerY - Math.cos(rotRad) * tipRadius;
                 targetWarp = this.config.warpStrength;
             } 
@@ -316,7 +318,7 @@
                 }
             } 
             else {
-                // Mode 'idle' (sur Mobile avant activation) : la nébuleuse ne pointe rien
+                // Mode 'idle' : sphère stellaire parfaite au repos
                 targetX = centerX;
                 targetY = centerY;
                 targetWarp = 0;
@@ -367,7 +369,7 @@
                 p.vy += (ty - p.y) * this.SPRING;
                 p.vz += (tz - p.z) * this.SPRING;
 
-                // 4. Déformation attractive (seulement si effectiveWarp > 0)
+                // 4. Déformation attractive vers targetX / targetY
                 if (effectiveWarp > 0.05) {
                     const scale = this.Z_PERSPECTIVE / (this.Z_PERSPECTIVE + p.z);
                     const sx = centerX + p.x * scale * dpr;

@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
     
     <!-- Feuille de style principale -->
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -30,42 +30,50 @@
     <!-- Cercle de la boussole fixé au centre exact de l'écran -->
     <div class="compass" id="compassContainer" role="region" aria-label="Boussole d'orientation">
         
-        <!-- Cadran rotatif minimaliste avec repères Nord (N) et Sud (S) -->
-        <div class="compass-dial" id="compassDial" aria-hidden="true">
-            <!-- Repère Nord (avec indicateur lumineux supérieur) -->
+        <!-- Cadran STRICTEMENT STATIQUE avec repères fixes N, E, S, W -->
+        <div class="compass-dial static-dial" id="compassDial" aria-hidden="true">
+            <!-- Repère Nord (0° / Haut) -->
             <div class="cardinal cardinal-north">
                 <span class="cardinal-indicator"></span>
                 <span class="cardinal-label">N</span>
             </div>
             
-            <!-- Repère Sud (subtil et épuré) -->
+            <!-- Repère Est (90° / Droite) -->
+            <div class="cardinal cardinal-east">
+                <span class="cardinal-label">E</span>
+                <span class="cardinal-indicator"></span>
+            </div>
+
+            <!-- Repère Sud (180° / Bas) -->
             <div class="cardinal cardinal-south">
                 <span class="cardinal-label">S</span>
                 <span class="cardinal-indicator"></span>
             </div>
 
-            <!-- Ticks d'axes Est et Ouest discrets pour le style instrument de précision -->
-            <div class="cardinal-tick tick-east"></div>
-            <div class="cardinal-tick tick-west"></div>
+            <!-- Repère Ouest (270° / Gauche) -->
+            <div class="cardinal cardinal-west">
+                <span class="cardinal-indicator"></span>
+                <span class="cardinal-label">W</span>
+            </div>
         </div>
 
         <!-- Anneau géométrique statique avec lueur dynamique -->
         <div class="compass-circle"></div>
 
-        <!-- Coeur de la boussole : affichage minimaliste du nombre de mètres -->
+        <!-- Coeur de la boussole : affichage minimaliste du nombre de mètres jusqu'à la cible -->
         <div class="compass-core">
-            <div id="distance" title="Distance restante jusqu'à la cible">
+            <div id="distance" title="Distance jusqu'à la cible">
                 <span id="distance-val">--</span><span class="unit">m</span>
             </div>
             
-            <!-- Bouton d'activation de la boussole -->
-            <button id="enableCompass" class="btn-activate">Activer la boussole</button>
+            <!-- Bouton pour basculer le mode (Desktop : Souris <-> Cible / Mobile : Veille <-> Cible) -->
+            <button id="enableCompass" class="btn-activate">Pointer vers la cible</button>
             
-            <!-- Repère d'état GPS discret -->
-            <div id="gps-status" class="gps-status">GPS en attente</div>
+            <!-- Statut discret -->
+            <div id="gps-status" class="gps-status">Mode Souris</div>
         </div>
 
-        <!-- Flèche géométrique invisible servant d'axe de calcul à nebula.js -->
+        <!-- Flèche géométrique invisible servant d'axe de repère -->
         <div class="arrow" aria-hidden="true"></div>
     </div>
 
@@ -89,8 +97,8 @@
     <pre id="debug" style="display:none;"></pre>
 
     <!-- Scripts de l'application -->
-    <script src="dual.js?v=5"></script>
-    <script src="nebula.js?v=5"></script>
+    <script src="dual.js?v=7"></script>
+    <script src="nebula.js?v=7"></script>
 
 </body>
 </html>
