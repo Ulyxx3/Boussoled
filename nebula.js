@@ -1,132 +1,423 @@
-(function() {
-  class NebulaSphere {
-    constructor(canvasId, options = {}) {
-      this.canvas = document.getElementById(canvasId);
-      if (!this.canvas) { console.error('Canvas not found:', canvasId); return; }
-      this.config = { ...{"particleCount":5000,"baseRadius":300,"interactionRadius":1800,"warpStrength":6,"rotationSpeed":0.15,"colorTheme":"fire","hoverType":"attract","needleOutset":300}, ...options };
-      this.ctx = this.canvas.getContext('2d');
-      this.particles = [];
-      this.mouse = { x: 0, y: 0, isActive: false };
-      this.SPRING = 0.05; this.FRICTION = 0.90; this.Z_PERSPECTIVE = 800;
-      // detect compass needle tip as interaction source if present
-      this.needleElem = document.querySelector('.arrow');
-      this.useNeedleTip = !!this.needleElem;
-      this.init(); this.bindEvents(); this.animate();
-    }
-    init() {
-      this.resize(); this.particles = [];
-      const { particleCount, baseRadius } = this.config;
-      for (let i = 0; i < particleCount; i++) {
-        const phi = Math.acos(1 - 2 * (i + 0.5) / particleCount);
-        const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-        const x = baseRadius * Math.sin(phi) * Math.cos(theta);
-        const y = baseRadius * Math.sin(phi) * Math.sin(theta);
-        const z = baseRadius * Math.cos(phi);
-        this.particles.push({ baseX: x, baseY: y, baseZ: z, x: x, y: y, z: z, vx: 0, vy: 0, vz: 0, size: Math.random() * 1.5 + 0.5, alpha: Math.random() * 0.5 + 0.5 });
-      }
-    }
-    resize() {
-      const dpr = window.devicePixelRatio || 1; const width = window.innerWidth; const height = window.innerHeight;
-      this.canvas.width = width * dpr; this.canvas.height = height * dpr; this.canvas.style.width = width + 'px'; this.canvas.style.height = height + 'px';
-    }
-    bindEvents() {
-      window.addEventListener('resize', () => this.resize());
-      const onMove = (e) => {
-        const rect = this.canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        this.mouse.x = clientX - rect.left; this.mouse.y = clientY - rect.top; this.mouse.isActive = true;
-      };
-      const onLeave = () => { this.mouse.isActive = false; };
-      this.canvas.addEventListener('mousemove', onMove);
-      this.canvas.addEventListener('touchmove', onMove, { passive: false });
-      this.canvas.addEventListener('mouseleave', onLeave);
-      this.canvas.addEventListener('touchend', onLeave);
-    }
-    animate() {
-      const width = this.canvas.width; const height = this.canvas.height; const cx = width / 2; const cy = height / 2;
-      this.ctx.clearRect(0, 0, width, height); this.ctx.globalCompositeOperation = 'lighter';
-      let r=180, g=200, b=255; if (this.config.colorTheme === 'purple') { r=200; g=100; b=255; } else if (this.config.colorTheme === 'fire') { r=255; g=60; b=50; } else if (this.config.colorTheme === 'white') { r=220; g=220; b=220; }
-      const time = Date.now() * 0.001 * this.config.rotationSpeed;
-      // If using needle tip as source, update mouse coords from needle
-      if (this.useNeedleTip && this.needleElem) {
-        // Use angle from dual.js which is the source of truth
-        const angleFromDual = (typeof window.compassAngle === 'number') ? window.compassAngle : 0;
-        const rot = angleFromDual * Math.PI / 180; // convert to radians
-        
-        const compassEl = this.needleElem.closest('.compass');
-        const compRect = compassEl ? compassEl.getBoundingClientRect() : null;
-        const canvasRect = this.canvas.getBoundingClientRect();
+/**
+ * ==============================================================================
+ * NEBULA.JS - MOTEUR DE PARTICULES 3D DE LA NÉBULEUSE EN FORME DE BOUSSOLE
+ * ==============================================================================
+ * Ce script gère une sphère de particules 3D animée dans un Canvas 2D.
+ * Trois modes de fonctionnement dynamiques :
+ * 1. 'idle'    : Sphère 3D harmonieuse au repos (sans pointe ni déformation).
+ *                Utilisé sur MOBILE avant l'activation de la boussole.
+ * 2. 'mouse'   : Attraction dynamique vers le curseur de la souris.
+ *                Utilisé sur PC avant l'activation de la boussole.
+ * 3. 'compass' : Déformation en pointe orientée selon le cap de la boussole
+ *                (window.compassAngle). Utilisé après activation de la boussole.
+ * ==============================================================================
+ */
 
-        if (compRect) {
-          // compass center
-          const centerX = compRect.left + compRect.width/2;
-          const centerY = compRect.top + compRect.height/2;
-          // put the interaction on the outer edge (slightly inset)
-          const outset = (this.config && typeof this.config.needleOutset === 'number') ? this.config.needleOutset : 0;
-          const radius = Math.min(compRect.width, compRect.height)/2 - 6 + outset;
+(function () {
+    'use strict';
 
-          // arrow graphic points down at rotation=0 (CSS coordinate system)
-          // Invert X axis to fix direction
-          const tipX = centerX - Math.sin(rot) * radius;
-          const tipY = centerY - Math.cos(rot) * radius; // ← MOINS ici !
-
-          // convert to canvas-local coords
-          this.mouse.x = tipX - canvasRect.left;
-          this.mouse.y = tipY - canvasRect.top;
-          this.mouse.isActive = true;
-        } else {
-          // fallback if compass not found
-          const nr = this.needleElem.getBoundingClientRect();
-          const tipX = nr.left + nr.width/2;
-          const tipY = nr.top;
-          this.mouse.x = tipX - canvasRect.left;
-          this.mouse.y = tipY - canvasRect.top;
-          this.mouse.isActive = true;
-        }
-      }
-      const mouseRelX = (this.mouse.x * (width / this.canvas.offsetWidth)) - cx;
-      const mouseRelY = (this.mouse.y * (height / this.canvas.offsetHeight)) - cy;
-      // Invert rotation direction so sphere follows needle instead of opposite
-      const rotX = this.mouse.isActive ? -mouseRelY * 0.0001 : 0; const rotY = this.mouse.isActive ? -mouseRelX * 0.0001 : 0;
-      this.particles.forEach(p => {
-        let tx = p.baseX * Math.cos(time) - p.baseZ * Math.sin(time);
-        let tz = p.baseX * Math.sin(time) + p.baseZ * Math.cos(time);
-        let ty = p.baseY;
-        if (this.mouse.isActive) {
-          let mx = tx * Math.cos(rotY) - tz * Math.sin(rotY);
-          let mz = tx * Math.sin(rotY) + tz * Math.cos(rotY);
-          tx = mx; tz = mz;
-          let my = ty * Math.cos(rotX) - tz * Math.sin(rotX);
-          mz = ty * Math.sin(rotX) + tz * Math.cos(rotX);
-          ty = my; tz = mz;
-        }
-        p.vx += (tx - p.x) * this.SPRING; p.vy += (ty - p.y) * this.SPRING; p.vz += (tz - p.z) * this.SPRING;
-        const scale = this.Z_PERSPECTIVE / (this.Z_PERSPECTIVE + p.z);
-        const sx = cx + p.x * scale; const sy = cy + p.y * scale;
-        if (this.mouse.isActive) {
-          const dx = sx - (this.mouse.x * (width/this.canvas.offsetWidth)); const dy = sy - (this.mouse.y * (height/this.canvas.offsetHeight));
-          const dist = Math.sqrt(dx*dx + dy*dy);
-          if (dist < this.config.interactionRadius) {
-            const force = (this.config.interactionRadius - dist) / this.config.interactionRadius;
-            const angle = Math.atan2(dy, dx);
-            let fx=0, fy=0, fz=0; const str = this.config.warpStrength;
-            if (this.config.hoverType === 'attract') { fx = -Math.cos(angle) * force * str; fy = -Math.sin(angle) * force * str; fz = force * str * 0.5; }
-            else if (this.config.hoverType === 'swirl') { fx = -Math.sin(angle) * force * str; fy = Math.cos(angle) * force * str; }
-            else { fx = Math.cos(angle) * force * str; fy = Math.sin(angle) * force * str; fz = -force * str * 0.5; }
-            p.vx += fx; p.vy += fy; p.vz += fz;
-          }
-        }
-        p.x += p.vx; p.y += p.vy; p.z += p.vz; p.vx *= this.FRICTION; p.vy *= this.FRICTION; p.vz *= this.FRICTION;
-        const finalScale = this.Z_PERSPECTIVE / (this.Z_PERSPECTIVE + p.z);
-        if (p.z > -this.Z_PERSPECTIVE + 10 && finalScale > 0) {
-          const alpha = Math.min(1, Math.max(0.1, (finalScale * p.alpha) - (p.z/1000)));
-          this.ctx.beginPath(); this.ctx.arc(cx + p.x * finalScale, cy + p.y * finalScale, p.size * finalScale, 0, Math.PI * 2);
-          this.ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`; this.ctx.fill();
-        }
-      });
-      this.animationId = requestAnimationFrame(() => this.animate());
+    /**
+     * Convertit une couleur HSL (Teinte, Saturation, Luminosité) en composantes RGB.
+     * @param {number} h - Teinte en degrés [0, 360]
+     * @param {number} s - Saturation en pourcentage [0, 100]
+     * @param {number} l - Luminosité en pourcentage [0, 100]
+     * @returns {[number, number, number]} Tableau [r, g, b] avec des valeurs entières [0, 255]
+     */
+    function hslToRgb(h, s, l) {
+        s /= 100;
+        l /= 100;
+        const k = n => (n + h / 30) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+        return [
+            Math.round(f(0) * 255),
+            Math.round(f(8) * 255),
+            Math.round(f(4) * 255)
+        ];
     }
-  }
-  new NebulaSphere('nebula-canvas');
+
+    class NebulaSphere {
+        /**
+         * Initialise la sphère nébuleuse.
+         * @param {string} canvasId - L'ID de l'élément canvas
+         * @param {Object} options - Paramètres de configuration
+         */
+        constructor(canvasId, options = {}) {
+            this.canvas = document.getElementById(canvasId);
+            if (!this.canvas) {
+                console.error('Canvas introuvable:', canvasId);
+                return;
+            }
+
+            // Contexte 2D optimisé
+            this.ctx = this.canvas.getContext('2d', { alpha: true });
+
+            // Lecture de la teinte initiale depuis les variables CSS ou localStorage
+            let initialHue = 5;
+            try {
+                const cssHue = getComputedStyle(document.documentElement).getPropertyValue('--theme-hue');
+                if (cssHue && !isNaN(parseInt(cssHue.trim(), 10))) {
+                    initialHue = parseInt(cssHue.trim(), 10);
+                }
+            } catch (e) {}
+
+            // Détection initiale de l'appareil (Mobile vs Desktop)
+            const isMobileDevice = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                                  ('ontouchstart' in window && navigator.maxTouchPoints > 0 && window.innerWidth < 1024);
+
+            // Mode initial :
+            // - Sur Mobile : 'idle' (la nébuleuse ne pointe rien, sphère stellaire au repos)
+            // - Sur PC : 'mouse' (la nébuleuse suit le curseur de la souris)
+            const defaultMode = isMobileDevice ? 'idle' : 'mouse';
+
+            // Configuration générale
+            this.config = {
+                particleCount: 4200,      // Nombre de particules de poussière stellaire
+                baseRadius: 280,          // Rayon de la sphère de base au repos
+                interactionRadius: 1600,  // Rayon d'influence de l'attraction
+                warpStrength: 5.8,        // Force maximale de déformation
+                rotationSpeed: 0.12,      // Vitesse de rotation lente sur elle-même
+                needleOutset: 280,        // Décalage de la pointe pour la forme boussole
+                hue: initialHue,          // Teinte HSL (synchronisée avec le thème)
+                mode: defaultMode,        // 'idle' | 'mouse' | 'compass'
+                ...options
+            };
+
+            // Mode actif
+            this.mode = this.config.mode;
+
+            // Constantes de physique
+            this.SPRING = 0.055;          // Force de rappel élastique vers la forme de base
+            this.FRICTION = 0.89;         // Amortissement de la vélocité
+            this.Z_PERSPECTIVE = 820;     // Distance focale de la caméra virtuelle
+
+            // Tableau contenant toutes les particules
+            this.particles = [];
+
+            // État de la position du curseur souris (en coordonnées canvas brutes)
+            this.mousePos = {
+                x: window.innerWidth / 2,
+                y: window.innerHeight / 2,
+                isActive: false
+            };
+
+            // Point d'attraction cible interpolé
+            this.targetPoint = { x: 0, y: 0, currentWarp: 0 };
+
+            // Cache géométrique pour éviter les reflows DOM
+            this.bounds = {
+                width: 0,
+                height: 0,
+                dpr: 1,
+                centerX: 0,
+                centerY: 0,
+                compassRadius: 170
+            };
+
+            // Canvas hors-écran (sprite) pour le rendu ultra-rapide des particules avec halo
+            this.particleSprite = document.createElement('canvas');
+            this.spriteCtx = this.particleSprite.getContext('2d');
+            this.spriteSize = 32;
+            this.particleSprite.width = this.spriteSize;
+            this.particleSprite.height = this.spriteSize;
+
+            // Couleur RGB active
+            this.rgb = hslToRgb(this.config.hue, 100, 55);
+
+            // Initialisations
+            this.updateSpriteTexture();
+            this.initParticles();
+            this.bindEvents();
+            this.resize();
+
+            // Boucle d'animation
+            this.animate = this.animate.bind(this);
+            this.animationId = requestAnimationFrame(this.animate);
+        }
+
+        /**
+         * Change le mode de fonctionnement de la nébuleuse.
+         * @param {'idle' | 'mouse' | 'compass'} newMode - Nouveau mode
+         */
+        setMode(newMode) {
+            this.mode = newMode;
+        }
+
+        /**
+         * Met à jour la position de la souris (pour le mode 'mouse' sur PC).
+         * @param {number} clientX - Coordonnée X de la souris
+         * @param {number} clientY - Coordonnée Y de la souris
+         * @param {boolean} isActive - Si la souris est active sur la fenêtre
+         */
+        setMousePosition(clientX, clientY, isActive = true) {
+            const dpr = this.bounds.dpr;
+            this.mousePos.x = clientX * dpr;
+            this.mousePos.y = clientY * dpr;
+            this.mousePos.isActive = isActive;
+        }
+
+        /**
+         * Génère ou rafraîchit la texture du sprite de particule dans le canvas hors-écran.
+         */
+        updateSpriteTexture() {
+            const [r, g, b] = this.rgb;
+            const ctx = this.spriteCtx;
+            const size = this.spriteSize;
+            const half = size / 2;
+
+            ctx.clearRect(0, 0, size, size);
+
+            const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
+            gradient.addColorStop(0.0, `rgba(255, 255, 255, 1.0)`);
+            gradient.addColorStop(0.2, `rgba(${r}, ${g}, ${b}, 0.95)`);
+            gradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, 0.35)`);
+            gradient.addColorStop(1.0, `rgba(${r}, ${g}, ${b}, 0.0)`);
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(half, half, half, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        /**
+         * Modifie la teinte HSL de la nébuleuse en temps réel (appelé par le slider).
+         * @param {number} hue - Teinte en degrés (0 à 360)
+         */
+        setHue(hue) {
+            this.config.hue = hue;
+            this.rgb = hslToRgb(hue, 100, 55);
+            this.updateSpriteTexture();
+        }
+
+        /**
+         * Distribue les particules uniformément sur une sphère 3D (spirale de Fibonacci).
+         */
+        initParticles() {
+            this.particles = [];
+            const count = this.config.particleCount;
+            const radius = this.config.baseRadius;
+
+            for (let i = 0; i < count; i++) {
+                const phi = Math.acos(1 - 2 * (i + 0.5) / count);
+                const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+
+                const x = radius * Math.sin(phi) * Math.cos(theta);
+                const y = radius * Math.sin(phi) * Math.sin(theta);
+                const z = radius * Math.cos(phi);
+
+                this.particles.push({
+                    baseX: x,
+                    baseY: y,
+                    baseZ: z,
+                    x: x,
+                    y: y,
+                    z: z,
+                    vx: 0,
+                    vy: 0,
+                    vz: 0,
+                    size: Math.random() * 2.8 + 1.2,
+                    alpha: Math.random() * 0.5 + 0.5
+                });
+            }
+        }
+
+        /**
+         * Recalcule la taille du canvas et met en cache les géométries centrales.
+         */
+        resize() {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+
+            this.canvas.width = Math.floor(w * dpr);
+            this.canvas.height = Math.floor(h * dpr);
+            this.canvas.style.width = w + 'px';
+            this.canvas.style.height = h + 'px';
+
+            this.bounds.width = this.canvas.width;
+            this.bounds.height = this.canvas.height;
+            this.bounds.dpr = dpr;
+            this.bounds.centerX = this.bounds.width / 2;
+            this.bounds.centerY = this.bounds.height / 2;
+
+            const compassEl = document.getElementById('compassContainer');
+            if (compassEl) {
+                const rect = compassEl.getBoundingClientRect();
+                this.bounds.compassRadius = (Math.min(rect.width, rect.height) / 2) * dpr;
+            } else {
+                this.bounds.compassRadius = Math.min(w, h) * 0.22 * dpr;
+            }
+        }
+
+        /**
+         * Écoute les événements globaux de redimensionnement et de mouvement souris.
+         */
+        bindEvents() {
+            window.addEventListener('resize', () => this.resize(), { passive: true });
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => this.resize(), 150);
+            }, { passive: true });
+
+            // Écoute de la souris pour le mode libre sur desktop
+            window.addEventListener('mousemove', (e) => {
+                if (this.mode === 'mouse') {
+                    this.setMousePosition(e.clientX, e.clientY, true);
+                }
+            }, { passive: true });
+
+            window.addEventListener('mouseleave', () => {
+                if (this.mode === 'mouse') {
+                    this.mousePos.isActive = false;
+                }
+            }, { passive: true });
+        }
+
+        /**
+         * Boucle d'animation principale à chaque trame.
+         */
+        animate() {
+            const ctx = this.ctx;
+            const { width, height, centerX, centerY, dpr } = this.bounds;
+
+            ctx.clearRect(0, 0, width, height);
+            ctx.globalCompositeOperation = 'lighter';
+
+            // Temps évolutif pour la rotation sur soi-même
+            const time = Date.now() * 0.001 * this.config.rotationSpeed;
+
+            // ------------------------------------------------------------------
+            // Détermination du point d'attraction et de la force selon le mode
+            // ------------------------------------------------------------------
+            let targetX = centerX;
+            let targetY = centerY;
+            let targetWarp = 0; // Par défaut en mode 'idle' : 0 (aucune pointe, sphère parfaite)
+
+            if (this.mode === 'compass') {
+                // Mode Boussole active : la nébuleuse pointe dans la direction de la boussole
+                const angleDeg = (typeof window.compassAngle === 'number') ? window.compassAngle : 0;
+                const rotRad = angleDeg * Math.PI / 180;
+                const tipRadius = this.bounds.compassRadius + (this.config.needleOutset * (dpr * 0.7));
+
+                // 0° pointe vers le haut (-cos pour Y, -sin pour X)
+                targetX = centerX - Math.sin(rotRad) * tipRadius;
+                targetY = centerY - Math.cos(rotRad) * tipRadius;
+                targetWarp = this.config.warpStrength;
+            } 
+            else if (this.mode === 'mouse') {
+                // Mode Souris sur PC : la nébuleuse suit la souris
+                if (this.mousePos.isActive) {
+                    targetX = this.mousePos.x;
+                    targetY = this.mousePos.y;
+                    targetWarp = this.config.warpStrength;
+                } else {
+                    targetX = centerX;
+                    targetY = centerY;
+                    targetWarp = 0;
+                }
+            } 
+            else {
+                // Mode 'idle' (sur Mobile avant activation) : la nébuleuse ne pointe rien
+                targetX = centerX;
+                targetY = centerY;
+                targetWarp = 0;
+            }
+
+            // Lissage progressif de la force de déformation pour une transition fluide entre modes
+            this.targetPoint.currentWarp += (targetWarp - this.targetPoint.currentWarp) * 0.08;
+            const effectiveWarp = this.targetPoint.currentWarp;
+
+            // Calcul de l'inclinaison 3D globale de la sphère
+            const relX = targetX - centerX;
+            const relY = targetY - centerY;
+            const rotX = (effectiveWarp > 0.1) ? -relY * 0.0001 : 0;
+            const rotY = (effectiveWarp > 0.1) ? -relX * 0.0001 : 0;
+
+            const cosRotY = Math.cos(rotY), sinRotY = Math.sin(rotY);
+            const cosRotX = Math.cos(rotX), sinRotX = Math.sin(rotX);
+            const cosTime = Math.cos(time), sinTime = Math.sin(time);
+
+            const interactRad = this.config.interactionRadius * dpr;
+            const sprite = this.particleSprite;
+
+            // ------------------------------------------------------------------
+            // Simulation et rendu des particules
+            // ------------------------------------------------------------------
+            const len = this.particles.length;
+            for (let i = 0; i < len; i++) {
+                const p = this.particles[i];
+
+                // 1. Rotation 3D de base autour de l'axe Y
+                let tx = p.baseX * cosTime - p.baseZ * sinTime;
+                let tz = p.baseX * sinTime + p.baseZ * cosTime;
+                let ty = p.baseY;
+
+                // 2. Inclinaison vers la direction active (si déformation présente)
+                if (effectiveWarp > 0.1) {
+                    let mx = tx * cosRotY - tz * sinRotY;
+                    let mz = tx * sinRotY + tz * cosRotY;
+                    tx = mx; tz = mz;
+
+                    let my = ty * cosRotX - tz * sinRotX;
+                    mz = ty * sinRotX + tz * cosRotX;
+                    ty = my; tz = mz;
+                }
+
+                // 3. Physique d'élasticité (ressort vers position de base)
+                p.vx += (tx - p.x) * this.SPRING;
+                p.vy += (ty - p.y) * this.SPRING;
+                p.vz += (tz - p.z) * this.SPRING;
+
+                // 4. Déformation attractive (seulement si effectiveWarp > 0)
+                if (effectiveWarp > 0.05) {
+                    const scale = this.Z_PERSPECTIVE / (this.Z_PERSPECTIVE + p.z);
+                    const sx = centerX + p.x * scale * dpr;
+                    const sy = centerY + p.y * scale * dpr;
+
+                    const dx = sx - targetX;
+                    const dy = sy - targetY;
+                    const dist = Math.hypot(dx, dy);
+
+                    if (dist < interactRad) {
+                        const force = (interactRad - dist) / interactRad;
+                        const angle = Math.atan2(dy, dx);
+
+                        p.vx += -Math.cos(angle) * force * effectiveWarp;
+                        p.vy += -Math.sin(angle) * force * effectiveWarp;
+                        p.vz += force * effectiveWarp * 0.4;
+                    }
+                }
+
+                // 5. Intégration de la vélocité et frottements
+                p.x += p.vx;
+                p.y += p.vy;
+                p.z += p.vz;
+                p.vx *= this.FRICTION;
+                p.vy *= this.FRICTION;
+                p.vz *= this.FRICTION;
+
+                // 6. Rendu par projection perspective
+                const finalScale = this.Z_PERSPECTIVE / (this.Z_PERSPECTIVE + p.z);
+                if (p.z > -this.Z_PERSPECTIVE + 20 && finalScale > 0) {
+                    const renderSize = p.size * finalScale * dpr * 2.2;
+                    const alpha = Math.min(1, Math.max(0.12, (finalScale * p.alpha) - (p.z / 1200)));
+
+                    ctx.globalAlpha = alpha;
+                    ctx.drawImage(
+                        sprite,
+                        (centerX + p.x * finalScale * dpr) - renderSize / 2,
+                        (centerY + p.y * finalScale * dpr) - renderSize / 2,
+                        renderSize,
+                        renderSize
+                    );
+                }
+            }
+
+            ctx.globalAlpha = 1.0;
+            this.animationId = requestAnimationFrame(this.animate);
+        }
+    }
+
+    // Expose l'instance globalement pour que dual.js puisse contrôler le mode et la teinte
+    window.nebulaSphere = new NebulaSphere('nebula-canvas');
+
 })();

@@ -1,34 +1,96 @@
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Boussole</title>
-        <link rel="stylesheet" href="style.css">
-        <!-- Nebula styles moved to style.css -->
-    </head>
-    <body>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Boussole Éthérée</title>
     
-        <div id="distance">-- m</div>
-        <canvas id="nebula-canvas"></canvas>
-        <div class="nebula-vignette"></div>
-        <div class="nebula-info">Ulyxx3</div>
-        <div class="compass">
-            <div class="arrow"></div>
-            <div class="compass-circle"></div>
+    <!-- Typographie moderne Space Grotesk pour un rendu minimaliste et futuriste -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Feuille de style principale -->
+    <link rel="stylesheet" href="style.css?v=5">
+</head>
+<body>
+
+    <!-- Canvas 2D plein écran pour la nébuleuse 3D de particules -->
+    <canvas id="nebula-canvas" aria-hidden="true"></canvas>
+
+    <!-- Vignette radiale sombre pour donner une impression de profondeur spatiale -->
+    <div class="nebula-vignette" aria-hidden="true"></div>
+
+    <!-- Signature en bas à gauche : "ETHER" au-dessus de "ULYXX3" -->
+    <div class="nebula-info" aria-label="Signature">
+        <div class="info-title">ETHER</div>
+        <div class="info-author">ULYXX3</div>
+    </div>
+
+    <!-- Cercle de la boussole fixé au centre exact de l'écran -->
+    <div class="compass" id="compassContainer" role="region" aria-label="Boussole d'orientation">
+        
+        <!-- Cadran rotatif minimaliste avec repères Nord (N) et Sud (S) -->
+        <div class="compass-dial" id="compassDial" aria-hidden="true">
+            <!-- Repère Nord (avec indicateur lumineux supérieur) -->
+            <div class="cardinal cardinal-north">
+                <span class="cardinal-indicator"></span>
+                <span class="cardinal-label">N</span>
+            </div>
+            
+            <!-- Repère Sud (subtil et épuré) -->
+            <div class="cardinal cardinal-south">
+                <span class="cardinal-label">S</span>
+                <span class="cardinal-indicator"></span>
+            </div>
+
+            <!-- Ticks d'axes Est et Ouest discrets pour le style instrument de précision -->
+            <div class="cardinal-tick tick-east"></div>
+            <div class="cardinal-tick tick-west"></div>
         </div>
-        <div class="info">
-            <button id="enableCompass">Activer la boussole</button>
-            <div id="heading">--</div>
-            <pre id="debug" style="display:none; font-size: 10px; max-width: 300px;"></pre>
+
+        <!-- Anneau géométrique statique avec lueur dynamique -->
+        <div class="compass-circle"></div>
+
+        <!-- Coeur de la boussole : affichage minimaliste du nombre de mètres -->
+        <div class="compass-core">
+            <div id="distance" title="Distance restante jusqu'à la cible">
+                <span id="distance-val">--</span><span class="unit">m</span>
+            </div>
+            
+            <!-- Bouton d'activation de la boussole -->
+            <button id="enableCompass" class="btn-activate">Activer la boussole</button>
+            
+            <!-- Repère d'état GPS discret -->
+            <div id="gps-status" class="gps-status">GPS en attente</div>
         </div>
-            <script>
-            // Load dual.js for GPS-only compass
-            const script = document.createElement('script');
-            script.src = 'dual.js';
-            script.defer = true;
-            document.body.appendChild(script);
-            </script>
-            <script src="nebula.js" defer></script>
-    </body>
-    </html>
+
+        <!-- Flèche géométrique invisible servant d'axe de calcul à nebula.js -->
+        <div class="arrow" aria-hidden="true"></div>
+    </div>
+
+    <!-- Slider de couleur situé en bas de la boussole -->
+    <div class="slider-container" aria-label="Réglage de la couleur">
+        <div class="slider-label">COULEUR</div>
+        <div class="slider-track-wrap">
+            <input 
+                type="range" 
+                id="colorSlider" 
+                min="0" 
+                max="360" 
+                value="5" 
+                step="1"
+                aria-label="Changer la couleur de la nébuleuse et de la boussole"
+            >
+        </div>
+    </div>
+
+    <!-- Console de débogage masquée -->
+    <pre id="debug" style="display:none;"></pre>
+
+    <!-- Scripts de l'application -->
+    <script src="dual.js?v=5"></script>
+    <script src="nebula.js?v=5"></script>
+
+</body>
+</html>
