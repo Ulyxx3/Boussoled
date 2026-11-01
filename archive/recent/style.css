@@ -1,0 +1,159 @@
+body {
+    background-color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    flex-direction: column;
+}
+
+h1 {
+    color: rgb(8, 255, 255);
+    text-align: center;
+    position: absolute;
+    top: 20px;
+}
+
+#distance {
+    color: rgb(8, 255, 255);
+    margin-top: 60px;
+    margin-bottom: 12px;
+    font-size: 20px;
+    text-align: center;
+}
+.compass {
+    width: min(50vw, 400px);
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    /* Fix compass to viewport center so it aligns with nebula canvas center */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10; /* above nebula */
+}
+
+.arrow {
+
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 20px solid transparent;
+  border-right: 20px solid transparent;
+  border-top: 150px solid rgb(255, 0, 0); /* pointe vers le haut */
+  transform: translateX(-50%) rotate(0deg);
+  transform-origin: 50% 100%; /* pivot en bas */
+  z-index: 3;
+  opacity: 0;   /* complètement invisible */
+}
+
+.arrow {
+  display: none;
+}
+
+/* Supprime .arrow::after si tu veux éviter l'ombre noire */
+.arrow::after {
+  display: none; /* ou supprime complètement cette règle */
+}
+
+.north-arrow {
+    display: none; /* Removed: GPS-only compass */
+}
+ 
+.arrow::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-top: 150px solid rgb(0, 0, 0);
+  top: 150px;
+   left: -20px;
+}
+
+
+
+
+/* Cercle gris en fond pour l'aiguille (simplifié) */
+.compass-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid rgba(8,255,255,0.2);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.info {
+    margin-top: 20px;
+    color: rgb(8, 255, 255);
+    text-align: center;
+}
+
+#enableCompass {
+    background: rgba(255,255,255,0.06);
+    color: rgb(8,255,255);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+#debug {
+    margin-top: 8px;
+    text-align: left;
+    max-width: 320px;
+    background: rgba(0,0,0,0.6);
+    color: #0ff;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+#heading {
+    margin-top: 8px;
+    font-size: 18px;
+}
+
+/* Nebula background styles (moved from index.html) */
+canvas#nebula-canvas { 
+    display: block; 
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; 
+    height: 100vh;
+    touch-action: none; 
+    z-index: 0;
+    pointer-events: none;
+}
+.nebula-vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at center, transparent 0%, black 100%);
+    opacity: 0.6;
+    z-index: 1;
+}
+.nebula-info {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    color: rgba(255,255,255,0.3);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    z-index: 5;
+}

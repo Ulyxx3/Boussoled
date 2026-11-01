@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boussole</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Boussole</h1>
+    <div id="distance">-- m</div>
+    <div class="compass">
+        <div class="arrow"></div>
+        <div class="north-arrow"></div>
+        <div class="compass-circle"></div>
+        <div class="compass-bg"></div>
+    </div>
+    <div class="info">
+        <button id="enableCompass">Activer la boussole</button>
+                <button id="toggleMode">Mode: north</button>
+        <button id="calibrateBtn">Calibrer</button>
+        <button id="resetCalibBtn">Reset</button>
+        <div id="heading">--</div>
+        <pre id="debug" style="display:none"></pre>
+    </div>
+        <script>
+        // Loader: charge `script.js` (north) ou `script3.js` (gps) selon le mode stocké
+        (function(){
+            const defaultMode = 'north';
+            const key = 'compassMode';
+            const mode = localStorage.getItem(key) || defaultMode;
+
+            function setToggleLabel() {
+                const btn = document.getElementById('toggleMode');
+                if (!btn) return;
+                btn.textContent = 'Mode: ' + (mode === 'gps' ? 'gps' : 'north');
+            }
+
+            // attach click handler to toggle and reload
+            document.addEventListener('DOMContentLoaded', () => {
+                setToggleLabel();
+                const tbtn = document.getElementById('toggleMode');
+                if (tbtn) tbtn.addEventListener('click', () => {
+                    const newMode = (localStorage.getItem(key) || defaultMode) === 'gps' ? 'north' : 'gps';
+                    localStorage.setItem(key, newMode);
+                    location.reload();
+                });
+            });
+
+            const script = document.createElement('script');
+            // always load the dual controller which updates both needles;
+            // the toggle still selects whether the red needle uses GPS or north
+            script.src = 'dual.js';
+            script.defer = true;
+            document.body.appendChild(script);
+        })();
+        </script>
+</body>
+</html>

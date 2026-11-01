@@ -1,1 +1,2 @@
-most recent archive (this was Boussoled for 8 months)
+A code that indicates a target's GPS position, based ont the smartphone's sensors.
+Currently experiencing some bug.
