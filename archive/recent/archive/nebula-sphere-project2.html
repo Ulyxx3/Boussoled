@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            background-color: #000;
+            background: radial-gradient(circle at center, #0f172a 0%, #000 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        canvas { 
+            display: block; 
+            width: 100vw; 
+            height: 100vh;
+            touch-action: none; 
+            position: relative;
+            z-index: 10;
+        }
+        .info {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            pointer-events: none;
+            user-select: none;
+            z-index: 20;
+        }
+        .vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at center, transparent 0%, black 100%);
+            opacity: 0.6;
+            z-index: 15;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="nebula-canvas"></canvas>
+    <div class="vignette"></div>
+    <div class="info">Nebula Warp Sphere</div>
+    <script>
+    
+(function() {
+  class NebulaSphere {
+    constructor(canvasId, options = {}) {
+      this.canvas = document.getElementById(canvasId);
+      if (!this.canvas) {
+        console.error('Canvas not found:', canvasId);
+        return;
+      }
+      
+      // Merge defaults with user options
+      this.config = { ...{"particleCount":5000,"baseRadius":200,"interactionRadius":1500,"warpStrength":6,"rotationSpeed":0.15,"colorTheme":"fire","hoverType":"attract"}, ...options };
+      this.ctx = this.canvas.getContext('2d');
+      this.particles = [];
+      this.mouse = { x: 0, y: 0, isActive: false };
+      // If a DOM element `.arrow` exists (e.g. a compass needle), use its tip as the interaction source
+      this.needleElem = document.querySelector('.arrow');
+      this.useNeedleTip = !!this.needleElem;
+      
+      // Physics Constants
+      this.SPRING = 0.05;
+      this.FRICTION = 0.90;
+      this.Z_PERSPECTIVE = 800;
+      
+      this.init();
+      this.bindEvents();
+      this.animate();
+    }
+
+    init() {
+      this.resize();
+      this.particles = [];
+      const { particleCount, baseRadius } = this.config;
+      
+      for (let i = 0; i < particleCount; i++) {
+        // Spherical distribution
+        const phi = Math.acos(1 - 2 * (i + 0.5) / particleCount);
+        const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+        
+        const x = baseRadius * Math.sin(phi) * Math.cos(theta);
+        const y = baseRadius * Math.sin(phi) * Math.sin(theta);
+        const z = baseRadius * Math.cos(phi);
+        
+        this.particles.push({
+          baseX: x, baseY: y, baseZ: z,
+          x: x, y: y, z: z,
+          vx: 0, vy: 0, vz: 0,
+          size: Math.random() * 1.5 + 0.5,
+          alpha: Math.random() * 0.5 + 0.5
+        });
+      }
+    }
+
+    resize() {
+      const dpr = window.devicePixelRatio || 1;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      this.canvas.width = width * dpr;
+      this.canvas.height = height * dpr;
+      this.canvas.style.width = width + 'px';
+      this.canvas.style.height = height + 'px';
+    }
+
+    bindEvents() {
+      window.addEventListener('resize', () => this.resize());
+      
+      const onMove = (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        this.mouse.x = clientX - rect.left;
+        this.mouse.y = clientY - rect.top;
+        this.mouse.isActive = true;
+      };
+      
+      const onLeave = () => { this.mouse.isActive = false; };
+      
+      this.canvas.addEventListener('mousemove', onMove);
+      this.canvas.addEventListener('touchmove', onMove, { passive: false });
+      this.canvas.addEventListener('mouseleave', onLeave);
+      this.canvas.addEventListener('touchend', onLeave);
+    }
+
+    animate() {
+      const width = this.canvas.width;
+      const height = this.canvas.height;
+      const cx = width / 2;
+      const cy = height / 2;
+      
+      this.ctx.clearRect(0, 0, width, height);
+      this.ctx.globalCompositeOperation = 'lighter';
+      
+      // Theme Colors
+      let r=180, g=200, b=255;
+      if (this.config.colorTheme === 'purple') { r=200; g=100; b=255; }
+      else if (this.config.colorTheme === 'fire') { r=255; g=60; b=50; }
+      else if (this.config.colorTheme === 'white') { r=220; g=220; b=220; }
+      
+      const time = Date.now() * 0.001 * this.config.rotationSpeed;
+      
+      // Determine interaction source: needle tip overrides mouse if present
+      if (this.useNeedleTip && this.needleElem) {
+        const nr = this.needleElem.getBoundingClientRect();
+        // approximate tip position: horizontal center, bottom of element
+        const tipX = nr.left + nr.width / 2;
+        const tipY = nr.top + nr.height;
+        this.mouse.x = tipX;
+        this.mouse.y = tipY;
+        this.mouse.isActive = true;
+      }
+
+      // Mouse / Needle Rotation Influence
+      const mouseRelX = (this.mouse.x * (width / this.canvas.offsetWidth)) - cx;
+      const mouseRelY = (this.mouse.y * (height / this.canvas.offsetHeight)) - cy;
+      const rotX = this.mouse.isActive ? mouseRelY * 0.0001 : 0;
+      const rotY = this.mouse.isActive ? mouseRelX * 0.0001 : 0;
+
+      this.particles.forEach(p => {
+        // 1. Rotation
+        let tx = p.baseX * Math.cos(time) - p.baseZ * Math.sin(time);
+        let tz = p.baseX * Math.sin(time) + p.baseZ * Math.cos(time);
+        let ty = p.baseY;
+
+        // Mouse Tilt
+        if (this.mouse.isActive) {
+          let mx = tx * Math.cos(rotY) - tz * Math.sin(rotY);
+          let mz = tx * Math.sin(rotY) + tz * Math.cos(rotY);
+          tx = mx; tz = mz;
+          let my = ty * Math.cos(rotX) - tz * Math.sin(rotX);
+          mz = ty * Math.sin(rotX) + tz * Math.cos(rotX);
+          ty = my; tz = mz;
+        }
+
+        // 2. Physics (Spring)
+        p.vx += (tx - p.x) * this.SPRING;
+        p.vy += (ty - p.y) * this.SPRING;
+        p.vz += (tz - p.z) * this.SPRING;
+
+        // 3. Interaction
+        const scale = this.Z_PERSPECTIVE / (this.Z_PERSPECTIVE + p.z);
+        const sx = cx + p.x * scale;
+        const sy = cy + p.y * scale;
+
+        if (this.mouse.isActive) {
+           const dx = sx - (this.mouse.x * (width/this.canvas.offsetWidth));
+           const dy = sy - (this.mouse.y * (height/this.canvas.offsetHeight));
+           const dist = Math.sqrt(dx*dx + dy*dy);
+           
+           if (dist < this.config.interactionRadius) {
+             const force = (this.config.interactionRadius - dist) / this.config.interactionRadius;
+             const angle = Math.atan2(dy, dx);
+             
+             let fx=0, fy=0, fz=0;
+             const str = this.config.warpStrength;
+             
+             if (this.config.hoverType === 'attract') {
+                fx = -Math.cos(angle) * force * str;
+                fy = -Math.sin(angle) * force * str;
+                fz = force * str * 0.5;
+             } else if (this.config.hoverType === 'swirl') {
+                fx = -Math.sin(angle) * force * str;
+                fy = Math.cos(angle) * force * str;
+             } else {
+                // Repel
+                fx = Math.cos(angle) * force * str;
+                fy = Math.sin(angle) * force * str;
+                fz = -force * str * 0.5;
+             }
+             
+             p.vx += fx; p.vy += fy; p.vz += fz;
+           }
+        }
+
+        // Apply
+        p.x += p.vx; p.y += p.vy; p.z += p.vz;
+        p.vx *= this.FRICTION; p.vy *= this.FRICTION; p.vz *= this.FRICTION;
+
+        // 4. Draw
+        const finalScale = this.Z_PERSPECTIVE / (this.Z_PERSPECTIVE + p.z);
+        if (p.z > -this.Z_PERSPECTIVE + 10 && finalScale > 0) {
+           const alpha = Math.min(1, Math.max(0.1, (finalScale * p.alpha) - (p.z/1000)));
+           this.ctx.beginPath();
+           this.ctx.arc(cx + p.x * finalScale, cy + p.y * finalScale, p.size * finalScale, 0, Math.PI * 2);
+           this.ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+           this.ctx.fill();
+        }
+      });
+      
+      this.animationId = requestAnimationFrame(() => this.animate());
+    }
+  }
+  
+  // Start the simulation
+  new NebulaSphere('nebula-canvas');
+})();
+    
+    </script>
+</body>
+</html>
